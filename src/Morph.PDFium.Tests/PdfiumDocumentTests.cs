@@ -18,7 +18,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task LoadFromBytes()
     {
-        using var document = PdfiumDocument.Load(File.ReadAllBytes("sample.pdf"));
+        using var document = PdfiumDocument.Load(await File.ReadAllBytesAsync("sample.pdf"));
         await Assert.That(document.PageCount).IsEqualTo(1);
     }
 

@@ -28,15 +28,10 @@ This project uses [SponsorCheck](https://github.com/SimonCropp/SponsorCheck) to 
 <!-- snippet: RenderPage -->
 <a id='snippet-RenderPage'></a>
 ```cs
-[Test]
-public async Task RenderPage()
-{
-    using var document = PdfiumDocument.Load("sample.pdf");
-    var png = document.RenderPage(0, dpi: 96);
-    await Verify(png, "png");
-}
+using var document = PdfiumDocument.Load("sample.pdf");
+var png = document.RenderPage(0, dpi: 96);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L3-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderPage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L8-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderPage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -45,17 +40,10 @@ public async Task RenderPage()
 <!-- snippet: RenderPages -->
 <a id='snippet-RenderPages'></a>
 ```cs
-[Test]
-public async Task RenderPages()
-{
-    using var document = PdfiumDocument.Load("multi-page.pdf");
-    var targets = document.RenderPages()
-        .Select((_, index) => new Target("png", new MemoryStream(_), $"page_{index + 1:0000}"))
-        .ToList();
-    await Verify(targets);
-}
+using var document = PdfiumDocument.Load("multi-page.pdf");
+List<byte[]> pages = document.RenderPages();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L15-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderPages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L23-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderPages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -64,20 +52,12 @@ public async Task RenderPages()
 <!-- snippet: DocumentInfo -->
 <a id='snippet-DocumentInfo'></a>
 ```cs
-[Test]
-public async Task DocumentInfo()
-{
-    using var document = PdfiumDocument.Load("multi-page.pdf");
-    await Verify(
-        new
-        {
-            document.PageCount,
-            Sizes = document.GetPageSizes(),
-            Properties = document.GetProperties()
-        });
-}
+using var document = PdfiumDocument.Load("multi-page.pdf");
+Console.WriteLine(document.PageCount);
+Console.WriteLine(document.GetPageSizes());
+Console.WriteLine(document.GetProperties());
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L29-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-DocumentInfo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L40-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-DocumentInfo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

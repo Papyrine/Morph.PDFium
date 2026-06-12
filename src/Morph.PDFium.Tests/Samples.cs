@@ -1,37 +1,51 @@
+using System.Diagnostics.CodeAnalysis;
+
 public class Samples
 {
-    #region RenderPage
-
     [Test]
     public async Task RenderPage()
     {
+        #region RenderPage
+
         using var document = PdfiumDocument.Load("sample.pdf");
         var png = document.RenderPage(0, dpi: 96);
+
+        #endregion
+
         await Verify(png, "png");
     }
 
-    #endregion
-
-    #region RenderPages
-
     [Test]
+    [SuppressMessage("Style", "IDE0007:Use implicit type")]
+    // ReSharper disable SuggestVarOrType_Elsewhere
     public async Task RenderPages()
     {
+        #region RenderPages
+
         using var document = PdfiumDocument.Load("multi-page.pdf");
-        var targets = document.RenderPages()
-            .Select((_, index) => new Target("png", new MemoryStream(_), $"page_{index + 1:0000}"))
-            .ToList();
+        List<byte[]> pages = document.RenderPages();
+
+        #endregion
+
+        var targets = pages
+            .Select((_, index) => new Target("png", new MemoryStream(_), $"page_{index + 1:0000}"));
         await Verify(targets);
     }
+    // ReSharper restore SuggestVarOrType_Elsewhere
 
-    #endregion
-
-    #region DocumentInfo
 
     [Test]
     public async Task DocumentInfo()
     {
+        #region DocumentInfo
+
         using var document = PdfiumDocument.Load("multi-page.pdf");
+        Console.WriteLine(document.PageCount);
+        Console.WriteLine(document.GetPageSizes());
+        Console.WriteLine(document.GetProperties());
+
+        #endregion
+
         await Verify(
             new
             {
@@ -40,6 +54,4 @@ public class Samples
                 Properties = document.GetProperties()
             });
     }
-
-    #endregion
 }
