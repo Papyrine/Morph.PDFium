@@ -131,14 +131,14 @@ public sealed class PdfiumDocument :
 
     static readonly (string Name, byte[] Tag)[] metadataTags =
     [
-        ("Title", "Title\0"u8.ToArray()),
-        ("Author", "Author\0"u8.ToArray()),
-        ("Subject", "Subject\0"u8.ToArray()),
-        ("Keywords", "Keywords\0"u8.ToArray()),
-        ("Creator", "Creator\0"u8.ToArray()),
-        ("Producer", "Producer\0"u8.ToArray()),
-        ("CreationDate", "CreationDate\0"u8.ToArray()),
-        ("ModDate", "ModDate\0"u8.ToArray())
+        ("Title", [.. "Title\0"u8]),
+        ("Author", [.. "Author\0"u8]),
+        ("Subject", [.. "Subject\0"u8]),
+        ("Keywords", [.. "Keywords\0"u8]),
+        ("Creator", [.. "Creator\0"u8]),
+        ("Producer", [.. "Producer\0"u8]),
+        ("CreationDate", [.. "CreationDate\0"u8]),
+        ("ModDate", [.. "ModDate\0"u8])
     ];
 
     /// <summary>Document information dictionary entries that have a value.</summary>
