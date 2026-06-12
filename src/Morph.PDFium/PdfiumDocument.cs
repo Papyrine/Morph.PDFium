@@ -5,14 +5,15 @@ namespace Morph.PDFium;
 /// PDFium is not thread safe, so all native calls are serialized on a process-wide
 /// lock; instances may be shared across threads.
 /// </summary>
-public sealed class PdfiumDocument :
+public sealed partial class PdfiumDocument :
     IDisposable
 {
     // PDFium reads from the source buffer on demand for the lifetime of the
     // document, so the managed array stays pinned until Dispose.
     GCHandle pinnedBytes;
     IntPtr handle;
-    readonly int pageCount;
+    // Not readonly: page import/insert/delete change the count, so mutators refresh it.
+    int pageCount;
 
     PdfiumDocument(GCHandle pinnedBytes, IntPtr handle, int pageCount)
     {
@@ -187,7 +188,7 @@ public sealed class PdfiumDocument :
             throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "dpi must be positive");
         }
 
-        var (pixels, width, height) = RenderPixels(index, dpi);
+        var (pixels, width, height) = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, null);
         // Encode outside the PDFium lock: it is pure managed work
         return PngEncoder.Encode(pixels, width, height, dpi);
     }
@@ -204,7 +205,13 @@ public sealed class PdfiumDocument :
         return pages;
     }
 
-    (byte[] pixels, int width, int height) RenderPixels(int index, double dpi)
+    // A sub-region of the page to render, in page points, scaled into a target pixel buffer.
+    internal readonly record struct ClipRegion(PdfRectangle Clip, int Width, int Height, uint BackgroundColor);
+
+    // Shared rasteriser. renderFlags carries caller options (annotations, grayscale, ...);
+    // ReverseByteOrder is always added so PDFium emits RGBA matching the PNG encoder. When
+    // region is null the whole page is rendered; otherwise a clipped/scaled matrix render runs.
+    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, ClipRegion? region, IntPtr formHandle = default)
     {
         lock (PdfiumNative.Sync)
         {
@@ -213,15 +220,23 @@ public sealed class PdfiumDocument :
                 throw new PdfiumException($"Failed to read size of page {index}");
             }
 
-            var width = ToPixels(size.Width, dpi);
-            var height = ToPixels(size.Height, dpi);
+            var width = region?.Width ?? ToPixels(size.Width, dpi);
+            var height = region?.Height ?? ToPixels(size.Height, dpi);
+            var background = region?.BackgroundColor ?? 0xFFFFFFFF;
             var stride = width * 4;
             var pixels = new byte[stride * height];
+            var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
             if (page == IntPtr.Zero)
             {
                 throw new PdfiumException($"Failed to load page {index}");
+            }
+
+            // Notify the form environment so widget appearances are current before drawing.
+            if (formHandle != IntPtr.Zero)
+            {
+                PdfiumNative.FORM_OnAfterLoadPage(page, formHandle);
             }
 
             try
@@ -242,19 +257,32 @@ public sealed class PdfiumDocument :
 
                     try
                     {
-                        // White is byte-order agnostic, so the fill is correct even though
-                        // ReverseByteOrder only applies to the page render below (which
-                        // makes PDFium emit RGBA instead of BGRA, matching PNG layout).
-                        _ = PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, 0xFFFFFFFF);
-                        PdfiumNative.FPDF_RenderPageBitmap(
-                            bitmap,
-                            page,
-                            0,
-                            0,
-                            width,
-                            height,
-                            0,
-                            PdfiumNative.RenderAnnotations | PdfiumNative.ReverseByteOrder);
+                        // The fill color is byte-order agnostic for opaque white/solid colors.
+                        _ = PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background);
+                        if (region is { } clip)
+                        {
+                            // Map page space (origin bottom-left) into the bitmap (origin top-left).
+                            var scaleX = width / clip.Clip.Width;
+                            var scaleY = height / clip.Clip.Height;
+                            var matrix = new FsMatrix
+                            {
+                                A = (float) scaleX,
+                                D = (float) -scaleY,
+                                E = (float) (-clip.Clip.Left * scaleX),
+                                F = (float) (clip.Clip.Top * scaleY)
+                            };
+                            var clipping = new FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
+                            PdfiumNative.FPDF_RenderPageBitmapWithMatrix(bitmap, page, in matrix, in clipping, flags);
+                        }
+                        else
+                        {
+                            PdfiumNative.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, flags);
+                            // Draw interactive form fields (widgets) on top of the page content.
+                            if (formHandle != IntPtr.Zero)
+                            {
+                                PdfiumNative.FPDF_FFLDraw(formHandle, bitmap, page, 0, 0, width, height, 0, flags);
+                            }
+                        }
                     }
                     finally
                     {
@@ -268,6 +296,11 @@ public sealed class PdfiumDocument :
             }
             finally
             {
+                if (formHandle != IntPtr.Zero)
+                {
+                    PdfiumNative.FORM_OnBeforeClosePage(page, formHandle);
+                }
+
                 PdfiumNative.FPDF_ClosePage(page);
             }
 
@@ -301,6 +334,20 @@ public sealed class PdfiumDocument :
     void ThrowIfDisposed() =>
         ObjectDisposedException.ThrowIf(handle == IntPtr.Zero, this);
 
+    // Re-reads the page count after a mutation. Caller must hold PdfiumNative.Sync.
+    internal void RefreshPageCount() =>
+        pageCount = PdfiumNative.FPDF_GetPageCount(handle);
+
+    /// <summary>The native FPDF_DOCUMENT handle, validated for disposal. For use by page/feature partials.</summary>
+    internal IntPtr Handle
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return handle;
+        }
+    }
+
     public void Dispose()
     {
         if (handle == IntPtr.Zero)
@@ -314,6 +361,10 @@ public sealed class PdfiumDocument :
         }
 
         handle = IntPtr.Zero;
-        pinnedBytes.Free();
+        // Documents created in memory (CreateNew) have no pinned source buffer.
+        if (pinnedBytes.IsAllocated)
+        {
+            pinnedBytes.Free();
+        }
     }
 }
