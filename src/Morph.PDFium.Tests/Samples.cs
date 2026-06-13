@@ -144,7 +144,11 @@ public class Samples
         #region RenderGrayscale
 
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions { Grayscale = true, Dpi = 150 });
+        var png = document.RenderPage(0, new RenderOptions
+        {
+            Grayscale = true,
+            Dpi = 150
+        });
 
         #endregion
 
@@ -159,7 +163,13 @@ public class Samples
         using var document = PdfiumDocument.Load("sample.pdf");
         // A clip rectangle in page points (origin bottom-left): the top-left quadrant.
         var clip = new PdfRectangle(0, 396, 306, 792);
-        var png = document.RenderRegion(0, clip, new RenderOptions { Dpi = 96 });
+        var png = document.RenderRegion(
+            0,
+            clip,
+            new()
+            {
+                Dpi = 96
+            });
 
         #endregion
 
@@ -212,7 +222,7 @@ public class Samples
         #region Attachments
 
         using var document = PdfiumDocument.Load("sample.pdf");
-        document.AddAttachment("notes.txt", "embedded data"u8.ToArray());
+        document.AddAttachment("notes.txt", [.. "embedded data"u8]);
         var withAttachment = document.Save();
 
         #endregion

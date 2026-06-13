@@ -37,7 +37,11 @@ public class SnapshotTests
     public async Task GrayscaleRender()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions { Grayscale = true, Dpi = 96 });
+        var png = document.RenderPage(0, new RenderOptions
+        {
+            Grayscale = true,
+            Dpi = 96
+        });
         await Verify(png, "png");
     }
 
@@ -46,7 +50,13 @@ public class SnapshotTests
     {
         using var document = PdfiumDocument.Load("sample.pdf");
         // Top-left quadrant of US Letter, in page points.
-        var png = document.RenderRegion(0, new(0, 396, 306, 792), new RenderOptions { Dpi = 96 });
+        var png = document.RenderRegion(
+            0,
+            new(0, 396, 306, 792),
+            new()
+            {
+                Dpi = 96
+            });
         await Verify(png, "png");
     }
 

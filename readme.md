@@ -71,9 +71,13 @@ Console.WriteLine(document.GetProperties());
 <a id='snippet-RenderGrayscale'></a>
 ```cs
 using var document = PdfiumDocument.Load("sample.pdf");
-var png = document.RenderPage(0, new RenderOptions { Grayscale = true, Dpi = 150 });
+var png = document.RenderPage(0, new RenderOptions
+{
+    Grayscale = true,
+    Dpi = 150
+});
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L144-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderGrayscale' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L144-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderGrayscale' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -87,9 +91,15 @@ Render a single rectangle of a page (in page points, origin bottom-left), scaled
 using var document = PdfiumDocument.Load("sample.pdf");
 // A clip rectangle in page points (origin bottom-left): the top-left quadrant.
 var clip = new PdfRectangle(0, 396, 306, 792);
-var png = document.RenderRegion(0, clip, new RenderOptions { Dpi = 96 });
+var png = document.RenderRegion(
+    0,
+    clip,
+    new()
+    {
+        Dpi = 96
+    });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L157-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L161-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -185,7 +195,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L172-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L182-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -205,7 +215,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L193-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L203-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -215,10 +225,10 @@ var stamped = document.Save();
 <a id='snippet-Attachments'></a>
 ```cs
 using var document = PdfiumDocument.Load("sample.pdf");
-document.AddAttachment("notes.txt", "embedded data"u8.ToArray());
+document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L212-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L222-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

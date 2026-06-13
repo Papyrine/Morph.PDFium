@@ -24,7 +24,11 @@ public class FormRenderTests
     public async Task RenderGrayscale()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions { Grayscale = true, Dpi = 72 });
+        var png = document.RenderPage(0, new RenderOptions
+        {
+            Grayscale = true,
+            Dpi = 72
+        });
         await Assert.That(png.Length).IsGreaterThan(0);
     }
 
@@ -33,7 +37,13 @@ public class FormRenderTests
     {
         using var document = PdfiumDocument.Load("sample.pdf");
         // US Letter top-left quadrant in points.
-        var png = document.RenderRegion(0, new(0, 396, 306, 792), new RenderOptions { Dpi = 96 });
+        var png = document.RenderRegion(
+            0,
+            new(0, 396, 306, 792),
+            new()
+            {
+                Dpi = 96
+            });
         var (width, height) = ReadPngSize(png);
         await Assert.That(width).IsEqualTo(408);
         await Assert.That(height).IsEqualTo(528);
