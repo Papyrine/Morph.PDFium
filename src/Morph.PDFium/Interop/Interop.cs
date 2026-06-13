@@ -91,39 +91,3 @@ static class Interop
     /// <summary>Fills a UTF-16 code-unit buffer; returns the number of code units written.</summary>
     public delegate int GetUnitsDelegate(Span<ushort> buffer, int length);
 }
-
-/// <summary>Mirrors the native FS_RECTF struct (a float rectangle in page or device space).</summary>
-[StructLayout(LayoutKind.Sequential)]
-struct FsRectF
-{
-    public float Left;
-    public float Top;
-    public float Right;
-    public float Bottom;
-}
-
-/// <summary>Mirrors the native FS_MATRIX struct ([a b c d e f] transform).</summary>
-[StructLayout(LayoutKind.Sequential)]
-struct FsMatrix
-{
-    public float A;
-    public float B;
-    public float C;
-    public float D;
-    public float E;
-    public float F;
-}
-
-/// <summary>Mirrors the native FS_QUADPOINTSF struct (four corner points).</summary>
-[StructLayout(LayoutKind.Sequential)]
-struct FsQuadPoints
-{
-    public float X1;
-    public float Y1;
-    public float X2;
-    public float Y2;
-    public float X3;
-    public float Y3;
-    public float X4;
-    public float Y4;
-}

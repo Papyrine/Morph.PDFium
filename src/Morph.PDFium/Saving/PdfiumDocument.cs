@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Morph.PDFium;
 
 public sealed partial class PdfiumDocument
@@ -59,7 +57,7 @@ public sealed partial class PdfiumDocument
 
         try
         {
-            stream.Write(new ReadOnlySpan<byte>(data, (int) size));
+            stream.Write(new(data, (int) size));
             return 1;
         }
         catch

@@ -37,38 +37,3 @@ public enum DocumentPermissions : uint
     /// <summary>All bits set, as reported for an unprotected or owner-unlocked document.</summary>
     All = 0xFFFFFFFF
 }
-
-/// <summary>The page mode that specifies how a document should be displayed when opened (PDF catalog /PageMode).</summary>
-public enum PageDisplayMode
-{
-    /// <summary>PDFium could not determine the page mode.</summary>
-    Unknown = -1,
-
-    /// <summary>Neither outline nor thumbnail panel visible.</summary>
-    UseNone = 0,
-
-    /// <summary>Show the document outline (bookmarks) panel.</summary>
-    UseOutlines = 1,
-
-    /// <summary>Show the page thumbnail panel.</summary>
-    UseThumbnails = 2,
-
-    /// <summary>Open in full-screen mode, with no menu bar, window controls or other windows visible.</summary>
-    FullScreen = 3,
-
-    /// <summary>Show the optional content group (layers) panel.</summary>
-    UseOptionalContent = 4,
-
-    /// <summary>Show the attachments panel.</summary>
-    UseAttachments = 5
-}
-
-/// <summary>Selects which of the two trailer file identifiers to read (PDF 32000-1:2008, 14.4).</summary>
-public enum FileIdentifierType
-{
-    /// <summary>The permanent identifier, assigned when the file is first created.</summary>
-    Permanent = 0,
-
-    /// <summary>The changing identifier, updated each time the file is saved.</summary>
-    Changing = 1
-}
