@@ -219,6 +219,40 @@ var stamped = document.Save();
 <!-- endSnippet -->
 
 
+### Draw shapes, images, and edit existing objects
+
+Beyond text and rectangles: draw lines and filled/stroked paths, stamp raster images, and
+remove or restyle (color, stroke width, position) the objects already on a page.
+
+<!-- snippet: EditPageObjects -->
+<a id='snippet-EditPageObjects'></a>
+```cs
+using var document = PdfiumDocument.Load("sample.pdf");
+using (var page = document.LoadPage(0))
+{
+    // Draw vector content.
+    page.AddLine(new(72, 72), new(520, 72), new(0, 0, 0, 255), width: 2);
+    page.AddPath(
+        [new(100, 400), new(200, 520), new(300, 400)],
+        fill: new(240, 220, 120, 255),
+        stroke: new(0, 0, 0, 255));
+
+    // Stamp an image (top-down RGBA pixels) into a rectangle in page points.
+    var logo = new byte[16 * 16 * 4];
+    Array.Fill(logo, (byte) 255);
+    page.AddImage(logo, 16, 16, new(430, 690, 540, 760));
+
+    // Tweak an existing object: recolour and nudge it.
+    page.SetObjectFillColor(0, new(20, 20, 120, 255));
+    page.MoveObject(0, dx: 4, dy: 0);
+}
+
+var edited = document.Save();
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L222-L246' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditPageObjects' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
 ### Embedded file attachments
 
 <!-- snippet: Attachments -->
@@ -228,7 +262,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L222-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L254-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

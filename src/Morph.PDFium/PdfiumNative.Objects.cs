@@ -27,23 +27,52 @@ static partial class PdfiumNative
     internal static partial bool FPDFPageObj_SetStrokeColor(IntPtr pageObject, uint r, uint g, uint b, uint a);
 
     [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObj_SetStrokeWidth(IntPtr pageObject, float width);
+
+    [LibraryImport(library)]
     internal static partial IntPtr FPDFPageObj_NewTextObj(IntPtr document, ReadOnlySpan<byte> font, float fontSize);
 
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool FPDFText_SetText(IntPtr textObject, ReadOnlySpan<byte> text);
 
+    public const int FillModeNone = 0;
     public const int FillModeWinding = 2;
 
     [LibraryImport(library)]
     internal static partial IntPtr FPDFPageObj_CreateNewRect(float x, float y, float w, float h);
 
     [LibraryImport(library)]
+    internal static partial IntPtr FPDFPageObj_CreateNewPath(float x, float y);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPath_LineTo(IntPtr path, float x, float y);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPath_Close(IntPtr path);
+
+    [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool FPDFPath_SetDrawMode(IntPtr path, int fillMode, [MarshalAs(UnmanagedType.Bool)] bool stroke);
 
     [LibraryImport(library)]
+    internal static partial IntPtr FPDFPageObj_NewImageObj(IntPtr document);
+
+    // pages/count let PDFium invalidate cached renderings of the affected pages; the bitmap is
+    // copied into the image object, so the caller may destroy it once this returns.
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFImageObj_SetBitmap(ReadOnlySpan<IntPtr> pages, int count, IntPtr imageObject, IntPtr bitmap);
+
+    [LibraryImport(library)]
     internal static partial void FPDFPage_InsertObject(IntPtr page, IntPtr pageObject);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPage_RemoveObject(IntPtr page, IntPtr pageObject);
 
     [LibraryImport(library)]
     internal static partial void FPDFPageObj_Destroy(IntPtr pageObject);

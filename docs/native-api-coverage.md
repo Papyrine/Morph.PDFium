@@ -1,7 +1,7 @@
 # PDFium native API coverage
 
 The bundled `pdfium.dll` (bblanchon.PDFium 151.0.7881) exports **460** functions —
-the complete public PDFium C API. Morph.PDFium currently binds **146** of them and
+the complete public PDFium C API. Morph.PDFium currently binds **157** of them and
 surfaces the meaningful subset through a managed API. This document records what is
 wrapped, and — more importantly — what is **not yet implemented**, with the reason.
 
@@ -19,7 +19,7 @@ declarations in `PdfiumNative.*.cs`; counts will drift as bindings are added.
 | Annotations | `PdfPage.GetAnnotations`, `AddAnnotation`, `RemoveAnnotation` |
 | Forms (AcroForm) | `GetFormType`, `LoadForm` → `PdfForm.GetFields`, `RenderPage` (widgets), `SetHighlight` |
 | Page manipulation | `NewPage`, `DeletePage`, `ImportPages`, `CopyViewerPreferences`, `PdfPage.Rotation`, `Flatten`, `GenerateContent` |
-| Page content editing | `PdfPage.GetObjects`, `AddText`, `AddRectangle` |
+| Page content editing | `PdfPage.GetObjects`, `AddText`, `AddRectangle`, `AddLine`, `AddPath`, `AddImage`, `RemoveObject`, `SetObjectFillColor`/`SetObjectStrokeColor`/`SetObjectStrokeWidth`, `MoveObject`, `TransformObject`, `GenerateContent` |
 | Save | `PdfiumDocument.Save` (bytes / stream, `FPDF_FILEWRITE`) |
 | Attachments | `AttachmentCount`, `GetAttachments`, `AddAttachment`, `DeleteAttachment`, `PdfAttachment.GetData`/`SetData` |
 | Signatures | `SignatureCount`, `GetSignatures` (metadata only; no cryptographic verification) |
@@ -53,7 +53,7 @@ These are genuine candidates; they were out of scope for the first pass.
 | Native group | Unwrapped | Notes |
 |--------------|-----------|-------|
 | `FPDFAnnot_*` (`fpdf_annot.h`) | 49 | Only subtype/rect/color/contents read + create/remove are wrapped. Ink lists, vertices, quad points, attachment points, appearance streams, link/focus subtypes, object append, and most form-field setters are not. |
-| `FPDFPageObj_*` / `FPDFPath_*` / `FPDFImageObj_*` / `FPDFTextObj_*` / `FPDFFont_*` / `FPDFClipPath_*` / `FPDFPageObjMark_*` | ~95 | Deep content editing: image objects (load JPEG / set bitmap), path-segment iteration, font embedding from data, marked content, glyph paths, clip paths. Only text/rectangle creation and object enumeration are wrapped. |
+| `FPDFPageObj_*` / `FPDFPath_*` / `FPDFImageObj_*` / `FPDFTextObj_*` / `FPDFFont_*` / `FPDFClipPath_*` / `FPDFPageObjMark_*` | ~89 | Text/rectangle/line/polygon creation, image insertion from raw pixels, object removal, and fill/stroke/width/transform edits are wrapped. Still open: JPEG-inline image load (its `FPDF_FILEACCESS` struct has a platform-dependent `unsigned long` layout), reading an image object's bitmap, path-segment iteration and Bézier curves, font embedding from data, marked content, glyph paths, clip paths. |
 | `FORM_*` (`fpdf_formfill.h`) | 31 | Interactive form *events* — `FORM_OnLButtonDown`, keystrokes, focus, selection, `FORM_GetFocusedText`, etc. The wrapper does headless field read + widget render only. |
 | `FPDF_StructElement_*` (`fpdf_structtree.h`) | 23 | Beyond type/title/alt-text/children: IDs, language, marked-content IDs, parents, and the full attribute-map API. |
 | `FPDFText_*` (`fpdf_text.h`) | 23 | Char angle, matrix, loose box, fill/stroke color, font info/flags/weight, generated/hyphen flags, `FindPrev`. |
@@ -63,5 +63,5 @@ These are genuine candidates; they were out of scope for the first pass.
 | `FPDF_ImportNPagesToOne`, `FPDF_NewXObjectFromPage`, form XObjects | 4 | N-up imposition and reusable page XObjects. |
 | `FPDF_DeviceToPage` / `FPDF_PageToDevice` | 2 | Device⇄page coordinate conversion helpers. |
 | `FPDFCatalog_*`, `FPDF_GetTrailerEnds`, `FPDF_DocumentHasValidCrossReferenceTable` | 5 | Catalog tagging/language, trailer offsets, xref-health probe. |
-| `FPDFBitmap_*` (`FPDFBitmap_Create`, `GetBuffer`, `GetWidth`/`Height`/`Stride`, `GetFormat`) | 6 | Standalone bitmap manipulation; the wrapper drives bitmaps internally via the external-buffer path. |
+| `FPDFBitmap_*` (`GetWidth`/`Height`/`Stride`, `GetFormat`) | 4 | Standalone bitmap manipulation; the wrapper drives bitmaps internally. `FPDFBitmap_Create`/`GetBuffer` are now wrapped (used by `AddImage`); the render path uses the external-buffer `CreateEx`. |
 | `FPDFAttachment_HasKey`/`GetValueType`/`GetStringValue`/`SetStringValue` | 4 | Attachment params-dictionary access (name/subtype/data are wrapped). |

@@ -56,6 +56,13 @@ static partial class PdfiumNative
     [LibraryImport(library)]
     internal static partial IntPtr FPDFBitmap_CreateEx(int width, int height, int format, IntPtr firstScan, int stride);
 
+    // Allocates a PDFium-owned bitmap (alpha != 0 => BGRA, else BGRx; always 4 bytes/pixel).
+    [LibraryImport(library)]
+    internal static partial IntPtr FPDFBitmap_Create(int width, int height, int alpha);
+
+    [LibraryImport(library)]
+    internal static partial IntPtr FPDFBitmap_GetBuffer(IntPtr bitmap);
+
     [LibraryImport(library)]
     internal static partial int FPDFBitmap_FillRect(IntPtr bitmap, int left, int top, int width, int height, uint color);
 

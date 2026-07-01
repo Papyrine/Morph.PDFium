@@ -217,6 +217,38 @@ public class Samples
     }
 
     [Test]
+    public async Task EditPageObjects()
+    {
+        #region EditPageObjects
+
+        using var document = PdfiumDocument.Load("sample.pdf");
+        using (var page = document.LoadPage(0))
+        {
+            // Draw vector content.
+            page.AddLine(new(72, 72), new(520, 72), new(0, 0, 0, 255), width: 2);
+            page.AddPath(
+                [new(100, 400), new(200, 520), new(300, 400)],
+                fill: new(240, 220, 120, 255),
+                stroke: new(0, 0, 0, 255));
+
+            // Stamp an image (top-down RGBA pixels) into a rectangle in page points.
+            var logo = new byte[16 * 16 * 4];
+            Array.Fill(logo, (byte) 255);
+            page.AddImage(logo, 16, 16, new(430, 690, 540, 760));
+
+            // Tweak an existing object: recolour and nudge it.
+            page.SetObjectFillColor(0, new(20, 20, 120, 255));
+            page.MoveObject(0, dx: 4, dy: 0);
+        }
+
+        var edited = document.Save();
+
+        #endregion
+
+        await Assert.That(edited.Length).IsGreaterThan(0);
+    }
+
+    [Test]
     public async Task Attachments()
     {
         #region Attachments
