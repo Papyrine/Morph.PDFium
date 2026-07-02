@@ -242,7 +242,7 @@ using (var page = document.LoadPage(0))
     Array.Fill(logo, (byte) 255);
     page.AddImage(logo, 16, 16, new(430, 690, 540, 760));
 
-    // Tweak an existing object: recolour and nudge it.
+    // Tweak an existing object: recolor and nudge it.
     page.SetObjectFillColor(0, new(20, 20, 120, 255));
     page.MoveObject(0, dx: 4, dy: 0);
 }
@@ -250,6 +250,30 @@ using (var page = document.LoadPage(0))
 var edited = document.Save();
 ```
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L222-L246' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditPageObjects' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+### Pin the trailer file identifier (`/ID`)
+
+PDFium has no `/ID` setter and regenerates the changing element on every save. `SetFileIdentifier`
+pins a specific value by appending an incremental-update trailer to the saved bytes (not supported
+for encrypted documents, whose `/ID` participates in the encryption key).
+
+<!-- snippet: SetFileId -->
+<a id='snippet-SetFileId'></a>
+```cs
+using var document = PdfiumDocument.Load("sample.pdf");
+// Pin a specific trailer /ID. PDFium has no /ID setter and randomises the changing
+// element on every save, so this is applied by appending an incremental-update trailer.
+byte[] id =
+[
+    0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33,
+    0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB
+];
+document.SetFileIdentifier(id);
+var pinned = document.Save();
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L254-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-SetFileId' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -262,7 +286,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L254-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L276-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

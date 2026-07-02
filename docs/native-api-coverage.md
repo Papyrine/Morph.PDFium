@@ -12,7 +12,7 @@ declarations in `PdfiumNative.*.cs`; counts will drift as bindings are added.
 
 | Area | Managed entry points |
 |------|----------------------|
-| Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier` |
+| Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier`, `SetFileIdentifier` (no native setter exists — applied by appending an incremental-update trailer on save) |
 | Pages & rendering | `PageCount`, `GetPageSize(s)`, `RenderPage` (DPI or `RenderOptions`), `RenderPages`, `RenderRegion` (clip/scale), `LoadPage` → `PdfPage` |
 | Text & search | `PdfPage.GetText`, `GetChars`, `GetTextInRectangle`, `GetTextRectangles`, `GetCharIndexAt`, `Search` |
 | Navigation | `GetBookmarks` (outline tree), destinations, actions, `PdfPage.GetLinks`, `GetWebLinks` |

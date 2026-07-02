@@ -236,7 +236,7 @@ public class Samples
             Array.Fill(logo, (byte) 255);
             page.AddImage(logo, 16, 16, new(430, 690, 540, 760));
 
-            // Tweak an existing object: recolour and nudge it.
+            // Tweak an existing object: recolor and nudge it.
             page.SetObjectFillColor(0, new(20, 20, 120, 255));
             page.MoveObject(0, dx: 4, dy: 0);
         }
@@ -246,6 +246,28 @@ public class Samples
         #endregion
 
         await Assert.That(edited.Length).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task SetFileId()
+    {
+        #region SetFileId
+
+        using var document = PdfiumDocument.Load("sample.pdf");
+        // Pin a specific trailer /ID. PDFium has no /ID setter and randomises the changing
+        // element on every save, so this is applied by appending an incremental-update trailer.
+        byte[] id =
+        [
+            0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22, 0x33,
+            0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB
+        ];
+        document.SetFileIdentifier(id);
+        var pinned = document.Save();
+
+        #endregion
+
+        using var reloaded = PdfiumDocument.Load(pinned);
+        await Assert.That(reloaded.GetFileIdentifier()).IsEqualTo(Convert.ToHexStringLower(id));
     }
 
     [Test]
