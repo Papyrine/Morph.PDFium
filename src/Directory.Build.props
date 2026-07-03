@@ -2,7 +2,7 @@
 <Project>
   <PropertyGroup>
     <NoWarn>CS1591;NU1608;SC023</NoWarn>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <LangVersion>preview</LangVersion>
     <AssemblyVersion>1.0.0</AssemblyVersion>
     <Description>Renders PDF pages to PNG images via PDFium</Description>
