@@ -46,6 +46,18 @@ public class SnapshotTests
     }
 
     [Test]
+    public async Task BackgroundRender()
+    {
+        using var document = PdfiumDocument.Load("sample.pdf");
+        var png = document.RenderPage(0, new RenderOptions
+        {
+            Background = new(255, 0, 0, 255),
+            Dpi = 96
+        });
+        await Verify(png, "png");
+    }
+
+    [Test]
     public async Task RegionRender()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
