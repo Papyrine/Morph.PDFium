@@ -22,6 +22,26 @@ This project uses [SponsorCheck](https://github.com/SimonCropp/SponsorCheck) to 
 [Morph.PDFium](https://www.nuget.org/packages/Morph.PDFium/)
 
 
+## Native binaries
+
+Morph.PDFium references all three [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) packages (`bblanchon.PDFium.Win32`, `bblanchon.PDFium.Linux` and `bblanchon.PDFium.macOS`), so it runs on Windows, Linux and macOS with no extra setup. The trade-off is that a restore pulls all three (~50 MB), and a runtime-agnostic build copies every runtime into `bin` (~110 MB across 12 RIDs).
+
+None of that reaches a published app. NuGet copies only the binary matching the target runtime, so `dotnet publish -r win-x64` emits a single `pdfium.dll`.
+
+To trim the build output as well, set [`UseCurrentRuntimeIdentifier`](https://learn.microsoft.com/dotnet/core/compatibility/sdk/7.0/automatic-runtimeidentifier) in an app or test project:
+
+```xml
+<PropertyGroup>
+  <UseCurrentRuntimeIdentifier>true</UseCurrentRuntimeIdentifier>
+  <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+</PropertyGroup>
+```
+
+`UseCurrentRuntimeIdentifier` resolves to the runtime of the machine doing the build (`win-x64` locally, `linux-x64` on CI, and so on), so only the matching `pdfium.dll` is copied. `AppendRuntimeIdentifierToOutputPath` keeps output at `bin/<configuration>/<tfm>/`, which the runtime identifier would otherwise push down to `bin/<configuration>/<tfm>/<rid>/`.
+
+Both affect build output only: a packed library is keyed by target framework rather than runtime, so setting them in one changes nothing about the resulting package.
+
+
 ## Usage
 
 
