@@ -17,20 +17,34 @@ public sealed partial class PdfPage
     }
 
     /// <summary>Extracts all text on the page as a single string, or null when the page has no text.</summary>
-    public string? GetText()
+    public string? GetText() => GetText(0, -1);
+
+    /// <summary>
+    /// Extracts the text for the characters in [<paramref name="startIndex"/>,
+    /// <paramref name="startIndex"/> + <paramref name="count"/>), or null when that range
+    /// holds no text. Pass -1 for <paramref name="count"/> to read all remaining
+    /// characters; a range running past the end of the page is truncated to it. Indices
+    /// match those used by <see cref="GetChars"/>, <see cref="GetTextRectangles"/> and
+    /// <see cref="Search"/>.
+    /// </summary>
+    public string? GetText(int startIndex, int count)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
         var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
             _ = page;
             var text = TextHandle();
-            var count = PdfiumNative.FPDFText_CountChars(text);
-            if (count <= 0)
+            var available = PdfiumNative.FPDFText_CountChars(text) - startIndex;
+            if (available <= 0)
             {
                 return null;
             }
 
-            return Interop.Utf16ByUnits(count, (buffer, length) => PdfiumNative.FPDFText_GetText(text, 0, count, buffer[..length]));
+            // FPDFText_GetText rejects a negative count outright, so resolve -1 and clamp
+            // an over-long range here rather than letting it fail.
+            var units = count < 0 ? available : Math.Min(count, available);
+            return Interop.Utf16ByUnits(units, (buffer, length) => PdfiumNative.FPDFText_GetText(text, startIndex, units, buffer[..length]));
         }
     }
 
