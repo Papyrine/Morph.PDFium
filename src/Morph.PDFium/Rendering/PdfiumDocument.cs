@@ -13,7 +13,7 @@ public sealed partial class PdfiumDocument
             throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
         }
 
-        var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), null);
+        var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null);
         return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
 
@@ -39,8 +39,8 @@ public sealed partial class PdfiumDocument
 
         var width = Math.Max(1, (int) Math.Round(clip.Width * options.Dpi / 72d));
         var height = Math.Max(1, (int) Math.Round(clip.Height * options.Dpi / 72d));
-        var region = new ClipRegion(clip, width, height, options.ToFillColor());
-        var (pixels, w, h) = RenderPixels(index, options.Dpi, options.ToFlags(), region);
+        var region = new ClipRegion(clip, width, height);
+        var (pixels, w, h) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), region);
         return PngEncoder.Encode(pixels, w, h, options.Dpi);
     }
 }

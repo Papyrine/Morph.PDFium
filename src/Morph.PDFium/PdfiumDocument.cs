@@ -188,7 +188,7 @@ public sealed partial class PdfiumDocument :
             throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "dpi must be positive");
         }
 
-        var (pixels, width, height) = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, null);
+        var (pixels, width, height) = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
         // Encode outside the PDFium lock: it is pure managed work
         return PngEncoder.Encode(pixels, width, height, dpi);
     }
@@ -205,13 +205,17 @@ public sealed partial class PdfiumDocument :
         return pages;
     }
 
+    // Byte-order agnostic: every channel is 0xFF.
+    internal const uint OpaqueWhite = 0xFFFFFFFF;
+
     // A sub-region of the page to render, in page points, scaled into a target pixel buffer.
-    internal readonly record struct ClipRegion(PdfRectangle Clip, int Width, int Height, uint BackgroundColor);
+    internal readonly record struct ClipRegion(PdfRectangle Clip, int Width, int Height);
 
     // Shared rasteriser. renderFlags carries caller options (annotations, grayscale, ...);
-    // ReverseByteOrder is always added so PDFium emits RGBA matching the PNG encoder. When
-    // region is null the whole page is rendered; otherwise a clipped/scaled matrix render runs.
-    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, ClipRegion? region, IntPtr formHandle = default)
+    // ReverseByteOrder is always added so PDFium emits RGBA matching the PNG encoder. background
+    // must already be in the bitmap's byte order (see RenderOptions.ToFillColor). When region is
+    // null the whole page is rendered; otherwise a clipped/scaled matrix render runs.
+    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, uint background, ClipRegion? region, IntPtr formHandle = default)
     {
         lock (PdfiumNative.Sync)
         {
@@ -222,7 +226,6 @@ public sealed partial class PdfiumDocument :
 
             var width = region?.Width ?? ToPixels(size.Width, dpi);
             var height = region?.Height ?? ToPixels(size.Height, dpi);
-            var background = region?.BackgroundColor ?? 0xFFFFFFFF;
             var stride = width * 4;
             var pixels = new byte[stride * height];
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
@@ -257,7 +260,6 @@ public sealed partial class PdfiumDocument :
 
                     try
                     {
-                        // The fill color is byte-order agnostic for opaque white/solid colors.
                         _ = PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background);
                         if (region is { } clip)
                         {

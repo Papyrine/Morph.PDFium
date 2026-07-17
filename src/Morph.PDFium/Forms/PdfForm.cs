@@ -144,7 +144,7 @@ public sealed class PdfForm :
     {
         options ??= new();
         var form = ValidHandle();
-        var (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), null, form);
+        var (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
         return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
 
