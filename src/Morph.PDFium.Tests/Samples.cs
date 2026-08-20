@@ -144,11 +144,13 @@ public class Samples
         #region RenderGrayscale
 
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions
-        {
-            Grayscale = true,
-            Dpi = 150
-        });
+        var png = document.RenderPage(
+            0,
+            new RenderOptions
+            {
+                Grayscale = true,
+                Dpi = 150
+            });
 
         #endregion
 

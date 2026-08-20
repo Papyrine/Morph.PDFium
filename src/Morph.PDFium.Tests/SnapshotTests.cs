@@ -37,11 +37,13 @@ public class SnapshotTests
     public async Task GrayscaleRender()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions
-        {
-            Grayscale = true,
-            Dpi = 96
-        });
+        var png = document.RenderPage(
+            0,
+            new RenderOptions
+            {
+                Grayscale = true,
+                Dpi = 96
+            });
         await Verify(png, "png");
     }
 
@@ -49,11 +51,13 @@ public class SnapshotTests
     public async Task BackgroundRender()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions
-        {
-            Background = new(255, 0, 0, 255),
-            Dpi = 96
-        });
+        var png = document.RenderPage(
+            0,
+            new RenderOptions
+            {
+                Background = new(255, 0, 0, 255),
+                Dpi = 96
+            });
         await Verify(png, "png");
     }
 

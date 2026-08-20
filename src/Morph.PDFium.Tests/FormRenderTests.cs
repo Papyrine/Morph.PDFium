@@ -24,11 +24,13 @@ public class FormRenderTests
     public async Task RenderGrayscale()
     {
         using var document = PdfiumDocument.Load("sample.pdf");
-        var png = document.RenderPage(0, new RenderOptions
-        {
-            Grayscale = true,
-            Dpi = 72
-        });
+        var png = document.RenderPage(
+            0,
+            new RenderOptions
+            {
+                Grayscale = true,
+                Dpi = 72
+            });
         await Assert.That(png.Length).IsGreaterThan(0);
     }
 
