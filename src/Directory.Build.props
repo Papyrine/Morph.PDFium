@@ -12,7 +12,4 @@
     <SuppressNETCoreSdkPreviewMessage>true</SuppressNETCoreSdkPreviewMessage>
     <Papyrine_SponsorshipLicenseIgnored>true</Papyrine_SponsorshipLicenseIgnored>
   </PropertyGroup>
-  <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)..\OsmfEula.txt" Pack="true" PackagePath="" Visible="false" />
-  </ItemGroup>
 </Project>
