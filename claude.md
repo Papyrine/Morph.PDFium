@@ -40,8 +40,6 @@ The native bindings and the public API are each split into per-feature partial f
 
 Style note: only public types get a namespace declaration (`Morph.PDFium`); internal types (`PdfiumNative`, `Interop`, the `Fs*` structs, `Navigation`) live in the global namespace.
 
-Build note: the `Release` pack step runs `SponsorCheck`, which needs a GitHub token. To compile-check without packaging, build the project in `Debug` (`dotnet build src/Morph.PDFium/Morph.PDFium.csproj -c Debug`); the SponsorCheck target only fires for `Release` + packable.
-
 ## Testing
 
 - Snapshot tests use Verify.TUnit with SSIM comparison for PNGs (`VerifierSettings.UseSsimForPng()`); verified PNG/txt files are committed beside the tests.
