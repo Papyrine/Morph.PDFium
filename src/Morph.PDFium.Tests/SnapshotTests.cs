@@ -5,7 +5,8 @@ public class SnapshotTests
     {
         using var document = PdfiumDocument.Load("sample.pdf");
         using var page = document.LoadPage(0);
-        await Verify(page.GetText());
+        await Verify(page.GetText())
+            .Snapshot("Hello, World! This is a simple paragraph.");
     }
 
     [Test]
@@ -21,7 +22,14 @@ public class SnapshotTests
                 Form = document.GetFormType(),
                 document.SignatureCount,
                 document.AttachmentCount
-            });
+            })
+            .Snapshot(
+                """
+                {
+                  Version: 1.7,
+                  Permissions: All
+                }
+                """);
     }
 
     [Test]
