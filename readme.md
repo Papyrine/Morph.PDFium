@@ -1,6 +1,6 @@
 # <img src="/src/icon.png" height="30px"> Morph.PDFium
 
-[![Build status](https://img.shields.io/appveyor/build/SimonCropp/Morph-PDFium)](https://ci.appveyor.com/project/SimonCropp/Morph-PDFium)
+[![Build status](https://github.com/Papyrine/Morph.PDFium/actions/workflows/build.yml/badge.svg)](https://github.com/Papyrine/Morph.PDFium/actions/workflows/build.yml)
 [![NuGet Status](https://img.shields.io/nuget/v/Morph.PDFium.svg?label=Morph.PDFium)](https://www.nuget.org/packages/Morph.PDFium/)
 
 A .NET wrapper over [PDFium](https://pdfium.googlesource.com/pdfium/), using the prebuilt native binaries from [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) (Windows, Linux, and macOS). No image library dependency: PNG encoding is built in.
