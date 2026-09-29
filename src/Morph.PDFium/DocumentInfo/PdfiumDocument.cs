@@ -62,7 +62,12 @@ public sealed partial class PdfiumDocument
         lock (PdfiumNative.Sync)
         {
             var revision = PdfiumNative.FPDF_GetSecurityHandlerRevision(doc);
-            return revision < 0 ? null : revision;
+            if (revision < 0)
+            {
+                return null;
+            }
+
+            return revision;
         }
     }
 

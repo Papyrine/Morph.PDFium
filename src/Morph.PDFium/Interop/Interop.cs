@@ -26,7 +26,12 @@ static class Interop
         var buffer = new byte[length];
         call(buffer, length);
         var value = Encoding.Unicode.GetString(buffer, 0, (int) length - 2);
-        return value.Length == 0 ? null : value;
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>
@@ -46,7 +51,12 @@ static class Interop
         var buffer = new byte[length];
         call(buffer, length);
         var value = Encoding.UTF8.GetString(buffer, 0, (int) length - 1);
-        return value.Length == 0 ? null : value;
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>
@@ -74,7 +84,12 @@ static class Interop
         // written includes the terminator; trim it.
         var chars = MemoryMarshal.Cast<ushort, char>(buffer.AsSpan(0, written - 1));
         var value = new string(chars);
-        return value.Length == 0 ? null : value;
+        if (value.Length == 0)
+        {
+            return null;
+        }
+
+        return value;
     }
 
     /// <summary>Converts a managed string to a NUL terminated UTF-16LE byte block (FPDF_WIDESTRING).</summary>
