@@ -3,7 +3,7 @@ public class ObjectTests
     [Test]
     public async Task ReadObjects()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         var objects = page.GetObjects();
         await Assert.That(objects.Count).IsEqualTo(page.ObjectCount);
@@ -16,7 +16,7 @@ public class ObjectTests
         byte[] bytes;
         int before;
         int afterAdds;
-        using (var document = PdfiumDocument.Load("sample.pdf"))
+        using (var document = PdfiumDocument.Load(ProjectFiles.sample_pdf))
         {
             using var page = document.LoadPage(0);
             before = page.ObjectCount;
@@ -35,7 +35,7 @@ public class ObjectTests
     [Test]
     public async Task StructureTreeAndThumbnailDoNotThrow()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         // sample.pdf is neither tagged nor has a thumbnail; both should be empty/null, not throw.
         await Assert.That(page.GetStructureTree()).IsNotNull();

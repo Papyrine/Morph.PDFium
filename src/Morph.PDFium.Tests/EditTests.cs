@@ -19,7 +19,7 @@ public class EditTests
     public async Task ImportPages()
     {
         using var target = PdfiumDocument.CreateNew();
-        using var source = PdfiumDocument.Load("multi-page.pdf");
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
         target.ImportPages(source, "1-2");
         await Assert.That(target.PageCount).IsEqualTo(2);
     }
@@ -27,7 +27,7 @@ public class EditTests
     [Test]
     public async Task RotateRoundTrips()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         page.Rotation = PageRotation.Clockwise90;
         await Assert.That(page.Rotation).IsEqualTo(PageRotation.Clockwise90);
@@ -38,7 +38,7 @@ public class EditTests
     {
         byte[] payload = [1, 2, 3, 4, 5];
         byte[] bytes;
-        using (var document = PdfiumDocument.Load("sample.pdf"))
+        using (var document = PdfiumDocument.Load(ProjectFiles.sample_pdf))
         {
             document.AddAttachment("data.bin", payload);
             bytes = document.Save();
@@ -54,7 +54,7 @@ public class EditTests
     [Test]
     public async Task AddAnnotation()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         var before = page.AnnotationCount;
         page.AddAnnotation(PdfAnnotationType.Square, new(100, 100, 200, 200), "hello");
@@ -64,7 +64,7 @@ public class EditTests
     [Test]
     public async Task DocumentInfoExtras()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         await Assert.That(document.GetPdfVersion()).IsNotNull();
         await Assert.That(document.GetPermissions()).IsEqualTo(DocumentPermissions.All);
         await Assert.That(document.SignatureCount).IsEqualTo(0);

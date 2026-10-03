@@ -3,14 +3,14 @@ public class FormRenderTests
     [Test]
     public async Task FormTypeIsNoneForPlainPdf()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         await Assert.That(document.GetFormType()).IsEqualTo(FormType.None);
     }
 
     [Test]
     public async Task LoadFormAndRender()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var form = document.LoadForm();
         using var page = document.LoadPage(0);
         var fields = form.GetFields(page);
@@ -23,7 +23,7 @@ public class FormRenderTests
     [Test]
     public async Task RenderGrayscale()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var png = document.RenderPage(
             0,
             new RenderOptions
@@ -37,7 +37,7 @@ public class FormRenderTests
     [Test]
     public async Task RenderRegion()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         // US Letter top-left quadrant in points.
         var png = document.RenderRegion(
             0,

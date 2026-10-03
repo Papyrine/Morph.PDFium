@@ -3,7 +3,7 @@ public class TextTests
     [Test]
     public async Task ExtractText()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         var text = page.GetText();
         await Assert.That(text).IsNotNull();
@@ -13,7 +13,7 @@ public class TextTests
     [Test]
     public async Task ExtractTextRange()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         var all = page.GetText()!;
 
@@ -27,7 +27,7 @@ public class TextTests
     [Test]
     public async Task ExtractTextRangeNegativeStartThrows()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         await Assert.That(() => page.GetText(-1, 5)).Throws<ArgumentOutOfRangeException>();
     }
@@ -35,7 +35,7 @@ public class TextTests
     [Test]
     public async Task CharGeometry()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         var chars = page.GetChars();
         await Assert.That(chars.Count).IsGreaterThan(0);

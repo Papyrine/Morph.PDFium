@@ -3,7 +3,7 @@ public class SnapshotTests
     [Test]
     public async Task ExtractedText()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         await Verify(page.GetText())
             .Snapshot("Hello, World! This is a simple paragraph.");
@@ -12,7 +12,7 @@ public class SnapshotTests
     [Test]
     public async Task DocumentInfo()
     {
-        using var document = PdfiumDocument.Load("multi-page.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
         await Verify(
             new
             {
@@ -35,7 +35,7 @@ public class SnapshotTests
     [Test]
     public async Task CharGeometry()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using var page = document.LoadPage(0);
         // Snapshot the first few characters' Unicode, box and font size.
         await Verify(page.GetChars().Take(5));
@@ -44,7 +44,7 @@ public class SnapshotTests
     [Test]
     public async Task GrayscaleRender()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var png = document.RenderPage(
             0,
             new RenderOptions
@@ -58,7 +58,7 @@ public class SnapshotTests
     [Test]
     public async Task BackgroundRender()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var png = document.RenderPage(
             0,
             new RenderOptions
@@ -72,7 +72,7 @@ public class SnapshotTests
     [Test]
     public async Task RegionRender()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         // Top-left quadrant of US Letter, in page points.
         var png = document.RenderRegion(
             0,
@@ -87,7 +87,7 @@ public class SnapshotTests
     [Test]
     public async Task EditedPageRender()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         using (var page = document.LoadPage(0))
         {
             page.AddRectangle(new(40, 700, 240, 760), new(220, 230, 250, 255), stroke: new(40, 60, 120, 255));

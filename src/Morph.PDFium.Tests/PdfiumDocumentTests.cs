@@ -3,14 +3,14 @@ public class PdfiumDocumentTests
     [Test]
     public async Task PageCount()
     {
-        using var document = PdfiumDocument.Load("multi-page.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
         await Assert.That(document.PageCount).IsEqualTo(4);
     }
 
     [Test]
     public async Task LoadFromStream()
     {
-        await using var stream = File.OpenRead("sample.pdf");
+        await using var stream = ProjectFiles.sample_pdf.OpenRead();
         using var document = PdfiumDocument.Load(stream);
         await Assert.That(document.PageCount).IsEqualTo(1);
     }
@@ -18,14 +18,14 @@ public class PdfiumDocumentTests
     [Test]
     public async Task LoadFromBytes()
     {
-        using var document = PdfiumDocument.Load(await File.ReadAllBytesAsync("sample.pdf"));
+        using var document = PdfiumDocument.Load(await File.ReadAllBytesAsync(ProjectFiles.sample_pdf));
         await Assert.That(document.PageCount).IsEqualTo(1);
     }
 
     [Test]
     public async Task LetterAt96Dpi()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var (width, height) = ReadPngSize(document.RenderPage(0));
         // US Letter is 612 x 792 points
         await Assert.That(width).IsEqualTo(816);
@@ -35,7 +35,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task DpiScalesOutput()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var (width, height) = ReadPngSize(document.RenderPage(0, dpi: 192));
         await Assert.That(width).IsEqualTo(1632);
         await Assert.That(height).IsEqualTo(2112);
@@ -44,7 +44,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task RenderIsDeterministic()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var first = document.RenderPage(0);
         var second = document.RenderPage(0);
         await Assert.That(second).IsEquivalentTo(first);
@@ -53,7 +53,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task ConcurrentRenders()
     {
-        using var document = PdfiumDocument.Load("multi-page.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
         var reference = document.RenderPage(0);
         var renders = await Task.WhenAll(
             Enumerable.Range(0, 8)
@@ -67,7 +67,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task Properties()
     {
-        using var document = PdfiumDocument.Load("sample.pdf");
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var properties = document.GetProperties();
         await Assert.That(properties).IsNotNull();
         await Assert.That(properties!.ContainsKey("Producer")).IsTrue();
@@ -85,7 +85,7 @@ public class PdfiumDocumentTests
     public async Task PageIndexOutOfRangeThrows() =>
         await Assert.That(() =>
             {
-                using var document = PdfiumDocument.Load("sample.pdf");
+                using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
                 document.RenderPage(5);
             })
             .Throws<ArgumentOutOfRangeException>();
@@ -93,7 +93,7 @@ public class PdfiumDocumentTests
     [Test]
     public async Task DisposedThrows()
     {
-        var document = PdfiumDocument.Load("sample.pdf");
+        var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         document.Dispose();
         await Assert.That(() => document.RenderPage(0)).Throws<ObjectDisposedException>();
     }
