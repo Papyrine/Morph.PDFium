@@ -45,7 +45,7 @@ public sealed partial class PdfPage
             for (var index = 0; index < count; index++)
             {
                 var units = PdfiumNative.FPDFLink_GetURL(linkPage, index, [], 0);
-                var url = Interop.Utf16ByUnits(units - 1, (buffer, length) => PdfiumNative.FPDFLink_GetURL(linkPage, index, buffer[..length], length));
+                var url = Interop.Utf16ByUnits(units - 1, (linkPage, index), static (state, buffer, length) => PdfiumNative.FPDFLink_GetURL(state.linkPage, state.index, buffer, length));
                 if (url is null)
                 {
                     continue;
