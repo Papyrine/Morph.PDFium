@@ -90,6 +90,30 @@ public class PdfiumDocumentTests
             })
             .Throws<ArgumentOutOfRangeException>();
 
+    // US Letter at 2400 dpi overflows a 32 bit byte count to a negative value; at 3400 dpi it
+    // wraps back round to a small positive one.
+    [Test]
+    [Arguments(2400)]
+    [Arguments(3400)]
+    [Arguments(1_000_000)]
+    public async Task OversizedRenderThrows(double dpi)
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.RenderPage(0, dpi)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    public async Task OversizedRegionThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var options = new RenderOptions
+        {
+            Dpi = 3400
+        };
+        await Assert.That(() => document.RenderRegion(0, new(0, 0, 612, 792), options))
+            .Throws<ArgumentOutOfRangeException>();
+    }
+
     [Test]
     public async Task DisposedThrows()
     {
