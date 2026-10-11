@@ -145,6 +145,14 @@ public sealed class PdfForm :
     {
         options ??= new();
         var form = ValidHandle();
+        // Touch the document so a disposed document surfaces as ObjectDisposedException.
+        _ = document.Handle;
+        document.ValidateIndex(index);
+        if (options.Dpi <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
+        }
+
         var (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
         return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
