@@ -325,7 +325,7 @@ public sealed partial class PdfiumDocument :
             _ => $"error code {error}"
         };
 
-    void ValidateIndex(int index)
+    internal void ValidateIndex(int index)
     {
         if (index < 0 || index >= pageCount)
         {

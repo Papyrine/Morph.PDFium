@@ -21,6 +21,27 @@ public class FormRenderTests
     }
 
     [Test]
+    public async Task FormRenderPageIndexOutOfRangeThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        using var form = document.LoadForm();
+        await Assert.That(() => form.RenderPage(5)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => form.RenderPage(-1)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    public async Task FormRenderNonPositiveDpiThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        using var form = document.LoadForm();
+        var options = new RenderOptions
+        {
+            Dpi = 0
+        };
+        await Assert.That(() => form.RenderPage(0, options)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
     public async Task RenderGrayscale()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
