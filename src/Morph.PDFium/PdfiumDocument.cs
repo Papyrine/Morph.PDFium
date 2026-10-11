@@ -30,6 +30,15 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(Stream stream, string? password = null)
     {
+        // A seekable stream reports how much is left, so read it straight into an array of
+        // exactly that size instead of growing a buffer and then copying out of it.
+        if (stream.CanSeek)
+        {
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) (stream.Length - stream.Position)));
+            stream.ReadExactly(bytes);
+            return Load(bytes, password);
+        }
+
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return Load(buffer.ToArray(), password);
