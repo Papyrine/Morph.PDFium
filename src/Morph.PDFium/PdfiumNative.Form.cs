@@ -40,7 +40,8 @@ static partial class PdfiumNative
 
     /// <summary>
     /// Managed mirror of FPDF_FORMFILLINFO. The struct is one <c>version</c> int followed by 32
-    /// callback function pointers. We leave every callback null: this is sufficient for
+    /// callback function pointers, with the <c>m_pJsPlatform</c> pointer and <c>xfa_disabled</c>
+    /// flag sitting between the version 1 and version 2 callbacks. We leave every callback null: this is sufficient for
     /// headless reading of field values and for rendering existing widget appearances with
     /// <see cref="FPDF_FFLDraw"/>. The full slot count must be present so PDFium does not read
     /// past the struct when <c>Version</c> is 2.
@@ -64,6 +65,8 @@ static partial class PdfiumNative
         public IntPtr FFI_SetTextFieldFocus;
         public IntPtr FFI_DoURIAction;
         public IntPtr FFI_DoGoToAction;
+        public IntPtr JsPlatform;
+        public int XfaDisabled;
         // Version 2.
         public IntPtr FFI_DisplayCaret;
         public IntPtr FFI_GetCurrentPageIndex;
