@@ -226,8 +226,16 @@ public sealed partial class PdfiumDocument :
 
             var width = region?.Width ?? ToPixels(size.Width, dpi);
             var height = region?.Height ?? ToPixels(size.Height, dpi);
+            // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
+            // the bitmap it describes, and the render would write past the end of it.
+            var byteCount = (long) width * 4 * height;
+            if (byteCount > Array.MaxLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(dpi), dpi, $"A {width}x{height} bitmap for page {index} exceeds the maximum buffer size");
+            }
+
             var stride = width * 4;
-            var pixels = new byte[stride * height];
+            var pixels = new byte[byteCount];
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
