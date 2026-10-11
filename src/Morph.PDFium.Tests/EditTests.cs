@@ -52,6 +52,22 @@ public class EditTests
     }
 
     [Test]
+    public async Task SaveSurfacesStreamException()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        using var stream = new ThrowingStream();
+        var exception = await Assert.That(() => document.Save(stream)).Throws<IOException>();
+        await Assert.That(exception!.Message).IsEqualTo("disk full");
+    }
+
+    class ThrowingStream :
+        MemoryStream
+    {
+        public override void Write(ReadOnlySpan<byte> buffer) =>
+            throw new IOException("disk full");
+    }
+
+    [Test]
     public async Task AttachmentAfterDocumentDisposedThrows()
     {
         var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
