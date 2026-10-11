@@ -48,6 +48,7 @@ public sealed class PdfForm :
         this.document = document;
         this.handle = handle;
         this.pinnedInfo = pinnedInfo;
+        document.Track(this);
     }
 
     internal static PdfForm Create(PdfiumDocument document)
@@ -158,6 +159,7 @@ public sealed class PdfForm :
         lock (PdfiumNative.Sync)
         {
             PdfiumNative.FPDFDOC_ExitFormFillEnvironment(handle);
+            document.Untrack(this);
         }
 
         handle = IntPtr.Zero;

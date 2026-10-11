@@ -122,6 +122,21 @@ public class PdfiumDocumentTests
         await Assert.That(() => document.RenderPage(0)).Throws<ObjectDisposedException>();
     }
 
+    [Test]
+    public async Task DisposingDocumentClosesOpenPagesAndForms()
+    {
+        var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var form = document.LoadForm();
+        var page = document.LoadPage(0);
+        document.Dispose();
+
+        await Assert.That(() => page.GetText()).Throws<ObjectDisposedException>();
+        await Assert.That(() => form.SetHighlight(new(255, 255, 0, 100))).Throws<ObjectDisposedException>();
+        // Already closed by the document, so these must not reach PDFium again.
+        page.Dispose();
+        form.Dispose();
+    }
+
     static (int width, int height) ReadPngSize(byte[] png)
     {
         // IHDR data starts at offset 16: 8 byte signature + 4 byte length + 4 byte type

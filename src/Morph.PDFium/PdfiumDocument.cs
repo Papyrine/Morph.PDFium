@@ -14,6 +14,9 @@ public sealed partial class PdfiumDocument :
     IntPtr handle;
     // Not readonly: page import/insert/delete change the count, so mutators refresh it.
     int pageCount;
+    // Pages and form sessions still open on this document. PDFium requires them to be
+    // closed before the document, so Dispose closes whatever the caller left open.
+    readonly List<IDisposable> children = [];
 
     PdfiumDocument(GCHandle pinnedBytes, IntPtr handle, int pageCount)
     {
@@ -358,6 +361,22 @@ public sealed partial class PdfiumDocument :
         }
     }
 
+    internal void Track(IDisposable child)
+    {
+        lock (PdfiumNative.Sync)
+        {
+            children.Add(child);
+        }
+    }
+
+    internal void Untrack(IDisposable child)
+    {
+        lock (PdfiumNative.Sync)
+        {
+            children.Remove(child);
+        }
+    }
+
     public void Dispose()
     {
         if (handle == IntPtr.Zero)
@@ -367,6 +386,22 @@ public sealed partial class PdfiumDocument :
 
         lock (PdfiumNative.Sync)
         {
+            // Each child untracks itself as it is disposed, hence the copy. Pages go first
+            // so none outlives a form session.
+            IDisposable[] open = [.. children];
+            foreach (var child in open)
+            {
+                if (child is PdfPage)
+                {
+                    child.Dispose();
+                }
+            }
+
+            foreach (var child in open)
+            {
+                child.Dispose();
+            }
+
             PdfiumNative.FPDF_CloseDocument(handle);
         }
 
