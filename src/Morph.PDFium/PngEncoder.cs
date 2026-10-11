@@ -44,7 +44,7 @@ static class PngEncoder
     {
         var stride = width * 4;
         using var output = new MemoryStream();
-        using (var zlib = new ZLibStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
+        using (var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
         {
             // The Up filter encodes each row as a delta from the row above. Page renders
             // are dominated by vertically repeating runs (white background, margins,
