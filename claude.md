@@ -49,3 +49,7 @@ Style note: only public types get a namespace declaration (`Morph.PDFium`); inte
 ## Package Management
 
 Central Package Management; versions live in `src/Directory.Packages.props`.
+
+## Audits
+
+- 2026-10-11: last full performance and bug scan of the library.
