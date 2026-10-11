@@ -16,6 +16,31 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    public async Task LoadFromStreamReadsFromCurrentPosition()
+    {
+        var pdf = await File.ReadAllBytesAsync(ProjectFiles.sample_pdf);
+        byte[] prefix = [1, 2, 3, 4, 5];
+        using var stream = new MemoryStream([.. prefix, .. pdf]);
+        stream.Position = prefix.Length;
+        using var document = PdfiumDocument.Load(stream);
+        await Assert.That(document.PageCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task LoadFromNonSeekableStream()
+    {
+        await using var stream = new NonSeekableStream(await File.ReadAllBytesAsync(ProjectFiles.sample_pdf));
+        using var document = PdfiumDocument.Load(stream);
+        await Assert.That(document.PageCount).IsEqualTo(1);
+    }
+
+    class NonSeekableStream(byte[] bytes) :
+        MemoryStream(bytes)
+    {
+        public override bool CanSeek => false;
+    }
+
+    [Test]
     public async Task LoadFromBytes()
     {
         using var document = PdfiumDocument.Load(await File.ReadAllBytesAsync(ProjectFiles.sample_pdf));
