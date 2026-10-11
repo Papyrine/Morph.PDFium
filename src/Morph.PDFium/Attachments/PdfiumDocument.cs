@@ -61,10 +61,27 @@ public sealed partial class PdfiumDocument
 
             if (!PdfiumNative.FPDFAttachment_SetFile(handle, doc, contents, (uint) contents.Length))
             {
+                // Do not leave an entry with no file behind in the name tree.
+                RemoveAttachment(doc, handle);
                 throw new PdfiumException($"Failed to write data for attachment '{name}'");
             }
 
             return new(doc, handle);
+        }
+    }
+
+    // Caller must hold PdfiumNative.Sync. The name tree is ordered by name, so the index of
+    // a just-added attachment is not known and has to be found by its handle.
+    static void RemoveAttachment(IntPtr doc, IntPtr attachment)
+    {
+        var count = PdfiumNative.FPDFDoc_GetAttachmentCount(doc);
+        for (var index = 0; index < count; index++)
+        {
+            if (PdfiumNative.FPDFDoc_GetAttachment(doc, index) == attachment)
+            {
+                PdfiumNative.FPDFDoc_DeleteAttachment(doc, index);
+                return;
+            }
         }
     }
 
