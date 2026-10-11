@@ -36,7 +36,7 @@ The native bindings and the public API are each split into per-feature partial f
 - **PdfPage.cs** + **PdfPage.\*.cs** (`.Text`, `.Links`, `.Annotations`, `.Edit`, `.Objects`) — a disposable page handle wrapping `FPDF_LoadPage`. Text and web-link sub-handles are loaded lazily and closed on dispose.
 - **PdfForm.cs** — disposable `FPDF_FORMHANDLE` session. The `FPDF_FORMFILLINFO` struct (one `version` int + 32 callback slots, all null for headless use) must stay pinned for the handle's lifetime, since PDFium retains the pointer.
 - **Save** uses a `FPDF_FILEWRITE` whose `WriteBlock` is an `[UnmanagedCallersOnly]` cdecl function pointer; the destination `Stream` is recovered via a GCHandle stored in a trailing struct slot.
-- **PngEncoder.cs** — dependency-free PNG writer: RGBA, Up filter, `ZLibStream` (SmallestSize), `pHYs` chunk for dpi. Deflate output is technically allowed to change between .NET runtime versions; if a runtime upgrade shifts snapshot bytes, regenerate verified files.
+- **PngEncoder.cs** — dependency-free PNG writer: RGBA, Up filter, `ZLibStream` (Optimal), `pHYs` chunk for dpi. Deflate output is technically allowed to change between .NET runtime versions; if a runtime upgrade shifts snapshot bytes, regenerate verified files.
 
 Style note: only public types get a namespace declaration (`Morph.PDFium`); internal types (`PdfiumNative`, `Interop`, the `Fs*` structs, `Navigation`) live in the global namespace.
 

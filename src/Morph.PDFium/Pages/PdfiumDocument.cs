@@ -12,6 +12,7 @@ public sealed partial class PdfiumDocument
         {
             var doc = Handle;
             ValidateIndex(index);
+            GeneratePendingContent();
             var page = PdfiumNative.FPDF_LoadPage(doc, index);
             if (page == IntPtr.Zero)
             {

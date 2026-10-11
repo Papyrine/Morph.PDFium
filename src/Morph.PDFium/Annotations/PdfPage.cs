@@ -109,7 +109,7 @@ public sealed partial class PdfPage
         var rectangle = PdfiumNative.FPDFAnnot_GetRect(annot, out var rect)
             ? new PdfRectangle(rect.Left, rect.Bottom, rect.Right, rect.Top)
             : default;
-        var contents = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAnnot_GetStringValue(annot, ContentsKey, buffer, length));
+        var contents = Interop.Utf16ByLength(annot, static (state, buffer, length) => PdfiumNative.FPDFAnnot_GetStringValue(state, ContentsKey, buffer, length));
         PdfColor? color = PdfiumNative.FPDFAnnot_GetColor(annot, 0, out var r, out var g, out var b, out var a)
             ? new PdfColor((byte) r, (byte) g, (byte) b, (byte) a)
             : null;

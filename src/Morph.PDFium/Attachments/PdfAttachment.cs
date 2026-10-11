@@ -24,7 +24,7 @@ public sealed class PdfAttachment
             lock (PdfiumNative.Sync)
             {
                 _ = document.Handle;
-                return Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAttachment_GetName(handle, buffer, length)) ?? string.Empty;
+                return Interop.Utf16ByLength(handle, static (state, buffer, length) => PdfiumNative.FPDFAttachment_GetName(state, buffer, length)) ?? string.Empty;
             }
         }
     }
@@ -37,7 +37,7 @@ public sealed class PdfAttachment
             lock (PdfiumNative.Sync)
             {
                 _ = document.Handle;
-                return Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAttachment_GetSubtype(handle, buffer, length));
+                return Interop.Utf16ByLength(handle, static (state, buffer, length) => PdfiumNative.FPDFAttachment_GetSubtype(state, buffer, length));
             }
         }
     }

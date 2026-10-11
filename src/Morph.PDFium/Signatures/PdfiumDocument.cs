@@ -36,10 +36,10 @@ public sealed partial class PdfiumDocument
                     continue;
                 }
 
-                var reason = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFSignatureObj_GetReason(signature, buffer, length));
-                var subFilter = Interop.Utf8ByLength((buffer, length) => PdfiumNative.FPDFSignatureObj_GetSubFilter(signature, buffer, length));
-                var time = Interop.Utf8ByLength((buffer, length) => PdfiumNative.FPDFSignatureObj_GetTime(signature, buffer, length));
-                var contents = ReadBytes((buffer, length) => PdfiumNative.FPDFSignatureObj_GetContents(signature, buffer, length));
+                var reason = Interop.Utf16ByLength(signature, static (state, buffer, length) => PdfiumNative.FPDFSignatureObj_GetReason(state, buffer, length));
+                var subFilter = Interop.Utf8ByLength(signature, static (state, buffer, length) => PdfiumNative.FPDFSignatureObj_GetSubFilter(state, buffer, length));
+                var time = Interop.Utf8ByLength(signature, static (state, buffer, length) => PdfiumNative.FPDFSignatureObj_GetTime(state, buffer, length));
+                var contents = ReadContents(signature);
                 var byteRange = ReadByteRange(signature);
                 var permission = PdfiumNative.FPDFSignatureObj_GetDocMDPPermission(signature);
 
@@ -50,16 +50,16 @@ public sealed partial class PdfiumDocument
         }
     }
 
-    static byte[] ReadBytes(Interop.LengthDelegate call)
+    static byte[] ReadContents(IntPtr signature)
     {
-        var length = call([], 0);
+        var length = PdfiumNative.FPDFSignatureObj_GetContents(signature, [], 0);
         if (length == 0)
         {
             return [];
         }
 
         var buffer = new byte[length];
-        call(buffer, length);
+        PdfiumNative.FPDFSignatureObj_GetContents(signature, buffer, length);
         return buffer;
     }
 

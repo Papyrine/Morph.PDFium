@@ -15,6 +15,10 @@ public sealed partial class PdfPage :
     // released on Dispose, since most pages are never queried for text.
     IntPtr textHandle;
     IntPtr webLinkHandle;
+    // Set when an edit adds page objects. Regenerating the content stream costs time
+    // proportional to the whole page, so it is deferred until something reads the stream
+    // rather than repeated for every object added.
+    bool contentPending;
 
     internal PdfPage(PdfiumDocument document, IntPtr handle, int index)
     {
@@ -92,6 +96,14 @@ public sealed partial class PdfPage :
             if (handle == IntPtr.Zero)
             {
                 return;
+            }
+
+            // Last chance to write out deferred edits. Dispose must not throw, so a failure
+            // here is not reported; call GenerateContent first to observe one.
+            if (contentPending)
+            {
+                PdfiumNative.FPDFPage_GenerateContent(handle);
+                contentPending = false;
             }
 
             if (webLinkHandle != IntPtr.Zero)

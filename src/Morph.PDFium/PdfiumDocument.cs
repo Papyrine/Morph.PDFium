@@ -30,6 +30,15 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(Stream stream, string? password = null)
     {
+        // A seekable stream reports how much is left, so read it straight into an array of
+        // exactly that size instead of growing a buffer and then copying out of it.
+        if (stream.CanSeek)
+        {
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) (stream.Length - stream.Position)));
+            stream.ReadExactly(bytes);
+            return Load(bytes, password);
+        }
+
         using var buffer = new MemoryStream();
         stream.CopyTo(buffer);
         return Load(buffer.ToArray(), password);
@@ -225,6 +234,7 @@ public sealed partial class PdfiumDocument :
             // Callers validate up front, but only a check made under the lock is safe
             // against a Dispose on another thread.
             ThrowIfDisposed();
+            GeneratePendingContent();
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -241,7 +251,8 @@ public sealed partial class PdfiumDocument :
             }
 
             var stride = width * 4;
-            var pixels = new byte[byteCount];
+            // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
+            var pixels = GC.AllocateUninitializedArray<byte>((int) byteCount);
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
@@ -274,7 +285,12 @@ public sealed partial class PdfiumDocument :
 
                     try
                     {
-                        _ = PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background);
+                        // The buffer is uninitialised, so a failed fill must not go on to be encoded.
+                        if (PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background) == 0)
+                        {
+                            throw new PdfiumException($"Failed to fill {width}x{height} bitmap for page {index}");
+                        }
+
                         if (region is { } clip)
                         {
                             // Map page space (origin bottom-left) into the bitmap (origin top-left).
@@ -361,6 +377,20 @@ public sealed partial class PdfiumDocument :
         {
             ThrowIfDisposed();
             return handle;
+        }
+    }
+
+    // Caller must hold PdfiumNative.Sync. Page edits defer regenerating their content
+    // stream, so anything that reads a page's stored content (save, render, import, loading
+    // the page again) calls this first.
+    internal void GeneratePendingContent()
+    {
+        foreach (var child in children)
+        {
+            if (child is PdfPage page)
+            {
+                page.GeneratePendingContent();
+            }
         }
     }
 

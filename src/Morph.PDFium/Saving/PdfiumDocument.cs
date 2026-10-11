@@ -31,6 +31,7 @@ public sealed partial class PdfiumDocument
             lock (PdfiumNative.Sync)
             {
                 var doc = Handle;
+                GeneratePendingContent();
                 var ok = pdfVersion is { } version
                     ? PdfiumNative.FPDF_SaveWithVersion(doc, in writer, (uint) flags, version)
                     : PdfiumNative.FPDF_SaveAsCopy(doc, in writer, (uint) flags);

@@ -92,11 +92,11 @@ static class Navigation
         switch (type)
         {
             case PdfActionType.Uri:
-                uri = Interop.Utf8ByLength((buffer, length) => PdfiumNative.FPDFAction_GetURIPath(document, action, buffer, length));
+                uri = Interop.Utf8ByLength((document, action), static (state, buffer, length) => PdfiumNative.FPDFAction_GetURIPath(state.document, state.action, buffer, length));
                 break;
             case PdfActionType.Launch:
             case PdfActionType.RemoteGoTo:
-                filePath = Interop.Utf8ByLength((buffer, length) => PdfiumNative.FPDFAction_GetFilePath(action, buffer, length));
+                filePath = Interop.Utf8ByLength(action, static (state, buffer, length) => PdfiumNative.FPDFAction_GetFilePath(state, buffer, length));
                 destination = ReadDestination(document, PdfiumNative.FPDFAction_GetDest(document, action));
                 break;
             case PdfActionType.GoTo:

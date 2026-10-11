@@ -9,23 +9,28 @@
 /// </summary>
 static class Interop
 {
+    // Values up to this many bytes are read into stack memory instead of a heap array.
+    const int stackLimit = 512;
+
     /// <summary>
     /// Reads a UTF-16LE string via the call-twice protocol where the length is
     /// returned in <em>bytes</em> including the two byte terminator (the convention
     /// used by FPDF_GetMetaText, FPDFBookmark_GetTitle, FPDFAction_GetURIPath, ...).
     /// Returns null when the value is absent or empty.
     /// </summary>
-    public static string? Utf16ByLength(LengthDelegate call)
+    public static string? Utf16ByLength<TState>(TState state, LengthDelegate<TState> call)
     {
-        var length = call([], 0);
+        var length = call(state, [], 0);
         if (length <= 2)
         {
             return null;
         }
 
-        var buffer = new byte[length];
-        call(buffer, length);
-        var value = Encoding.Unicode.GetString(buffer, 0, (int) length - 2);
+        var size = checked((int) length);
+        var buffer = size <= stackLimit ? stackalloc byte[stackLimit] : new byte[size];
+        buffer = buffer[..size];
+        call(state, buffer, length);
+        var value = Encoding.Unicode.GetString(buffer[..^2]);
         if (value.Length == 0)
         {
             return null;
@@ -40,17 +45,19 @@ static class Interop
     /// FPDFAttachment_GetName encodes UTF-16 instead — see <see cref="Utf16ByLength"/>).
     /// Returns null when the value is absent or empty.
     /// </summary>
-    public static string? Utf8ByLength(LengthDelegate call)
+    public static string? Utf8ByLength<TState>(TState state, LengthDelegate<TState> call)
     {
-        var length = call([], 0);
+        var length = call(state, [], 0);
         if (length <= 1)
         {
             return null;
         }
 
-        var buffer = new byte[length];
-        call(buffer, length);
-        var value = Encoding.UTF8.GetString(buffer, 0, (int) length - 1);
+        var size = checked((int) length);
+        var buffer = size <= stackLimit ? stackalloc byte[stackLimit] : new byte[size];
+        buffer = buffer[..size];
+        call(state, buffer, length);
+        var value = Encoding.UTF8.GetString(buffer[..^1]);
         if (value.Length == 0)
         {
             return null;
@@ -66,7 +73,7 @@ static class Interop
     /// code-unit count reported by the API; the buffer it fills holds that many units
     /// plus a terminator.
     /// </summary>
-    public static string? Utf16ByUnits(int units, GetUnitsDelegate call)
+    public static string? Utf16ByUnits<TState>(int units, TState state, GetUnitsDelegate<TState> call)
     {
         if (units <= 0)
         {
@@ -74,15 +81,17 @@ static class Interop
         }
 
         // +1 for the terminator the API writes when room is available.
-        var buffer = new ushort[units + 1];
-        var written = call(buffer, units + 1);
+        var size = units + 1;
+        var buffer = size <= stackLimit / 2 ? stackalloc ushort[stackLimit / 2] : new ushort[size];
+        buffer = buffer[..size];
+        var written = call(state, buffer, size);
         if (written <= 0)
         {
             return null;
         }
 
         // written includes the terminator; trim it.
-        var chars = MemoryMarshal.Cast<ushort, char>(buffer.AsSpan(0, written - 1));
+        var chars = MemoryMarshal.Cast<ushort, char>(buffer[..(written - 1)]);
         var value = new string(chars);
         if (value.Length == 0)
         {
@@ -100,9 +109,17 @@ static class Interop
         return bytes;
     }
 
-    /// <summary>Fills a buffer of <paramref name="length"/> bytes; returns the required byte count.</summary>
-    public delegate uint LengthDelegate(Span<byte> buffer, uint length);
+    /// <summary>
+    /// Fills a buffer of <paramref name="length"/> bytes; returns the required byte count.
+    /// The handles the native call needs arrive through <paramref name="state"/> so callers
+    /// can pass a static lambda, which allocates nothing per call.
+    /// </summary>
+    public delegate uint LengthDelegate<in TState>(TState state, Span<byte> buffer, uint length);
 
-    /// <summary>Fills a UTF-16 code-unit buffer; returns the number of code units written.</summary>
-    public delegate int GetUnitsDelegate(Span<ushort> buffer, int length);
+    /// <summary>
+    /// Fills a UTF-16 code-unit buffer exactly <paramref name="length"/> units long; returns
+    /// the number of code units written. See <see cref="LengthDelegate{TState}"/> for
+    /// <paramref name="state"/>.
+    /// </summary>
+    public delegate int GetUnitsDelegate<in TState>(TState state, Span<ushort> buffer, int length);
 }

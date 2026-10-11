@@ -71,6 +71,7 @@ public sealed partial class PdfiumDocument
         {
             var doc = Handle;
             var src = source.Handle;
+            source.GeneratePendingContent();
             if (!PdfiumNative.FPDF_ImportPages(doc, src, range, index))
             {
                 throw new PdfiumException("Failed to import pages (invalid page range?)");
@@ -91,6 +92,7 @@ public sealed partial class PdfiumDocument
         {
             var doc = Handle;
             var src = source.Handle;
+            source.GeneratePendingContent();
             if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index))
             {
                 throw new PdfiumException("Failed to import pages (invalid indices?)");
