@@ -38,8 +38,8 @@ public sealed partial class PdfPage
 
     /// <summary>
     /// Adds a text object drawn at (<paramref name="x"/>, <paramref name="y"/>) in page points,
-    /// using one of the standard 14 fonts. The page content is regenerated so the change is
-    /// included on <see cref="PdfiumDocument.Save(SaveFlags,int?)"/>.
+    /// using one of the standard 14 fonts. The page content stream is regenerated once, when
+    /// it is next needed (save, render or disposing the page), not on every call.
     /// </summary>
     public void AddText(string text, double x, double y, string fontName = "Helvetica", double fontSize = 12, PdfColor? color = null)
     {
@@ -66,16 +66,14 @@ public sealed partial class PdfPage
             // Translate the object to the requested baseline position.
             PdfiumNative.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
             PdfiumNative.FPDFPage_InsertObject(page, obj);
-            if (!PdfiumNative.FPDFPage_GenerateContent(page))
-            {
-                throw new PdfiumException($"Failed to regenerate content for page {Index}");
-            }
+            contentPending = true;
         }
     }
 
     /// <summary>
-    /// Adds a filled (and optionally stroked) rectangle to the page. The page content is
-    /// regenerated so the change is included on <see cref="PdfiumDocument.Save(SaveFlags,int?)"/>.
+    /// Adds a filled (and optionally stroked) rectangle to the page. The page content stream
+    /// is regenerated once, when it is next needed (save, render or disposing the page), not
+    /// on every call.
     /// </summary>
     public void AddRectangle(PdfRectangle rectangle, PdfColor fill, PdfColor? stroke = null)
     {
@@ -98,10 +96,7 @@ public sealed partial class PdfPage
             // is a no-op and PDFium discards it when the content stream is reparsed on load.
             PdfiumNative.FPDFPath_SetDrawMode(obj, PdfiumNative.FillModeWinding, stroke is not null);
             PdfiumNative.FPDFPage_InsertObject(page, obj);
-            if (!PdfiumNative.FPDFPage_GenerateContent(page))
-            {
-                throw new PdfiumException($"Failed to regenerate content for page {Index}");
-            }
+            contentPending = true;
         }
     }
 

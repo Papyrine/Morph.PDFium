@@ -58,6 +58,7 @@ public sealed partial class PdfPage
         lock (PdfiumNative.Sync)
         {
             var page = ValidHandle();
+            GeneratePendingContent();
             var result = PdfiumNative.FPDFPage_Flatten(page, forPrinting ? PdfiumNative.FlatPrint : PdfiumNative.FlatNormalDisplay);
             if (result == 0)
             {
@@ -70,8 +71,9 @@ public sealed partial class PdfPage
     }
 
     /// <summary>
-    /// Regenerates the page content stream after edits. Call before saving when page objects
-    /// have been added, removed or modified.
+    /// Regenerates the page content stream after edits. <see cref="AddText"/> and
+    /// <see cref="AddRectangle"/> arrange this themselves, so calling it is only needed to
+    /// force the regeneration early.
     /// </summary>
     public void GenerateContent()
     {
@@ -82,6 +84,25 @@ public sealed partial class PdfPage
             {
                 throw new PdfiumException($"Failed to generate content for page {Index}");
             }
+
+            contentPending = false;
         }
+    }
+
+    // Caller must hold PdfiumNative.Sync. Regenerates the content stream if an edit left it
+    // out of date; a no-op otherwise.
+    internal void GeneratePendingContent()
+    {
+        if (!contentPending)
+        {
+            return;
+        }
+
+        if (!PdfiumNative.FPDFPage_GenerateContent(handle))
+        {
+            throw new PdfiumException($"Failed to regenerate content for page {Index}");
+        }
+
+        contentPending = false;
     }
 }
