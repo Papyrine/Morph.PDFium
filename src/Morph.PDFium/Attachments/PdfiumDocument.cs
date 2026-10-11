@@ -33,7 +33,7 @@ public sealed partial class PdfiumDocument
                 var handle = PdfiumNative.FPDFDoc_GetAttachment(doc, index);
                 if (handle != IntPtr.Zero)
                 {
-                    attachments.Add(new(doc, handle));
+                    attachments.Add(new(this, handle));
                 }
             }
 
@@ -64,7 +64,7 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException($"Failed to write data for attachment '{name}'");
             }
 
-            return new(doc, handle);
+            return new(this, handle);
         }
     }
 

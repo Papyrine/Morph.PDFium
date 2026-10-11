@@ -52,6 +52,17 @@ public class EditTests
     }
 
     [Test]
+    public async Task AttachmentAfterDocumentDisposedThrows()
+    {
+        var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var attachment = document.AddAttachment("data.bin", [1, 2, 3]);
+        document.Dispose();
+        await Assert.That(() => attachment.Name).Throws<ObjectDisposedException>();
+        await Assert.That(() => attachment.GetData()).Throws<ObjectDisposedException>();
+        await Assert.That(() => attachment.SetData([4])).Throws<ObjectDisposedException>();
+    }
+
+    [Test]
     public async Task AddAnnotation()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);

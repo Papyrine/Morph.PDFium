@@ -2,14 +2,15 @@
 
 /// <summary>
 /// An embedded file attachment. The handle stays valid for the lifetime of the owning
-/// document, so instances need not be disposed.
+/// document, so instances need not be disposed; using one after its document has been
+/// disposed throws <see cref="ObjectDisposedException"/>.
 /// </summary>
 public sealed class PdfAttachment
 {
-    readonly IntPtr document;
+    readonly PdfiumDocument document;
     readonly IntPtr handle;
 
-    internal PdfAttachment(IntPtr document, IntPtr handle)
+    internal PdfAttachment(PdfiumDocument document, IntPtr handle)
     {
         this.document = document;
         this.handle = handle;
@@ -20,6 +21,7 @@ public sealed class PdfAttachment
     {
         get
         {
+            _ = document.Handle;
             lock (PdfiumNative.Sync)
             {
                 return Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAttachment_GetName(handle, buffer, length)) ?? string.Empty;
@@ -32,6 +34,7 @@ public sealed class PdfAttachment
     {
         get
         {
+            _ = document.Handle;
             lock (PdfiumNative.Sync)
             {
                 return Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAttachment_GetSubtype(handle, buffer, length));
@@ -42,6 +45,7 @@ public sealed class PdfAttachment
     /// <summary>The raw bytes of the embedded file, or an empty array when it has no data.</summary>
     public byte[] GetData()
     {
+        _ = document.Handle;
         lock (PdfiumNative.Sync)
         {
             if (!PdfiumNative.FPDFAttachment_GetFile(handle, [], 0, out var length) || length == 0)
@@ -62,9 +66,10 @@ public sealed class PdfAttachment
     /// <summary>Replaces the embedded file's data.</summary>
     public void SetData(ReadOnlySpan<byte> contents)
     {
+        var doc = document.Handle;
         lock (PdfiumNative.Sync)
         {
-            if (!PdfiumNative.FPDFAttachment_SetFile(handle, document, contents, (uint) contents.Length))
+            if (!PdfiumNative.FPDFAttachment_SetFile(handle, doc, contents, (uint) contents.Length))
             {
                 throw new PdfiumException($"Failed to set data for attachment '{Name}'");
             }
