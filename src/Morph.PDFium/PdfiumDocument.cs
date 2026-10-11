@@ -225,6 +225,7 @@ public sealed partial class PdfiumDocument :
             // Callers validate up front, but only a check made under the lock is safe
             // against a Dispose on another thread.
             ThrowIfDisposed();
+            GeneratePendingContent();
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -367,6 +368,20 @@ public sealed partial class PdfiumDocument :
         {
             ThrowIfDisposed();
             return handle;
+        }
+    }
+
+    // Caller must hold PdfiumNative.Sync. Page edits defer regenerating their content
+    // stream, so anything that reads a page's stored content (save, render, import, loading
+    // the page again) calls this first.
+    internal void GeneratePendingContent()
+    {
+        foreach (var child in children)
+        {
+            if (child is PdfPage page)
+            {
+                page.GeneratePendingContent();
+            }
         }
     }
 
