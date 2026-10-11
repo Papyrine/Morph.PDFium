@@ -108,10 +108,10 @@ public sealed partial class PdfiumDocument :
     /// <summary>Page dimensions in PDF points (1/72 inch).</summary>
     public PageSize GetPageSize(int index)
     {
-        ThrowIfDisposed();
-        ValidateIndex(index);
         lock (PdfiumNative.Sync)
         {
+            ThrowIfDisposed();
+            ValidateIndex(index);
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -148,10 +148,10 @@ public sealed partial class PdfiumDocument :
     /// <summary>Document information dictionary entries that have a value.</summary>
     public Dictionary<string, string>? GetProperties()
     {
-        ThrowIfDisposed();
         Dictionary<string, string>? properties = null;
         lock (PdfiumNative.Sync)
         {
+            ThrowIfDisposed();
             foreach (var (name, tag) in metadataTags)
             {
                 // Returns the required buffer size in bytes for the UTF-16LE value
@@ -222,6 +222,9 @@ public sealed partial class PdfiumDocument :
     {
         lock (PdfiumNative.Sync)
         {
+            // Callers validate up front, but only a check made under the lock is safe
+            // against a Dispose on another thread.
+            ThrowIfDisposed();
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -379,13 +382,15 @@ public sealed partial class PdfiumDocument :
 
     public void Dispose()
     {
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
+        // Checked and cleared under the lock so a call on another thread either completes
+        // first or sees the document as disposed.
         lock (PdfiumNative.Sync)
         {
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
             // Each child untracks itself as it is disposed, hence the copy. Pages go first
             // so none outlives a form session.
             IDisposable[] open = [.. children];
@@ -403,13 +408,12 @@ public sealed partial class PdfiumDocument :
             }
 
             PdfiumNative.FPDF_CloseDocument(handle);
-        }
-
-        handle = IntPtr.Zero;
-        // Documents created in memory (CreateNew) have no pinned source buffer.
-        if (pinnedBytes.IsAllocated)
-        {
-            pinnedBytes.Free();
+            handle = IntPtr.Zero;
+            // Documents created in memory (CreateNew) have no pinned source buffer.
+            if (pinnedBytes.IsAllocated)
+            {
+                pinnedBytes.Free();
+            }
         }
     }
 }

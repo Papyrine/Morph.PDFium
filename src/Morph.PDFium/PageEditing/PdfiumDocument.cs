@@ -27,7 +27,6 @@ public sealed partial class PdfiumDocument
     /// </summary>
     public PdfPage NewPage(int index, double width, double height)
     {
-        var doc = Handle;
         if (index < 0 || index > pageCount)
         {
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
@@ -35,6 +34,7 @@ public sealed partial class PdfiumDocument
 
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             var page = PdfiumNative.FPDFPage_New(doc, index, width, height);
             if (page == IntPtr.Zero)
             {
@@ -49,10 +49,10 @@ public sealed partial class PdfiumDocument
     /// <summary>Deletes the page at <paramref name="index"/>.</summary>
     public void DeletePage(int index)
     {
-        var doc = Handle;
-        ValidateIndex(index);
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
+            ValidateIndex(index);
             PdfiumNative.FPDFPage_Delete(doc, index);
             RefreshPageCount();
         }
@@ -66,11 +66,11 @@ public sealed partial class PdfiumDocument
     public void ImportPages(PdfiumDocument source, string? pageRange = null, int index = 0)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var doc = Handle;
-        var src = source.Handle;
         var range = pageRange is null ? default : Encoding.ASCII.GetBytes(pageRange + '\0');
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
+            var src = source.Handle;
             if (!PdfiumNative.FPDF_ImportPages(doc, src, range, index))
             {
                 throw new PdfiumException("Failed to import pages (invalid page range?)");
@@ -87,10 +87,10 @@ public sealed partial class PdfiumDocument
     public void ImportPages(PdfiumDocument source, ReadOnlySpan<int> pageIndices, int index = 0)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var doc = Handle;
-        var src = source.Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
+            var src = source.Handle;
             if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index))
             {
                 throw new PdfiumException("Failed to import pages (invalid indices?)");
@@ -104,10 +104,10 @@ public sealed partial class PdfiumDocument
     public void CopyViewerPreferences(PdfiumDocument source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var doc = Handle;
-        var src = source.Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
+            var src = source.Handle;
             PdfiumNative.FPDF_CopyViewerPreferences(doc, src);
         }
     }

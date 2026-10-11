@@ -32,9 +32,9 @@ public sealed partial class PdfPage :
     {
         get
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
+                var page = ValidHandle();
                 return new(PdfiumNative.FPDF_GetPageWidthF(page), PdfiumNative.FPDF_GetPageHeightF(page));
             }
         }
@@ -45,9 +45,9 @@ public sealed partial class PdfPage :
     /// </summary>
     public PdfRectangle GetBoundingBox()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             if (!PdfiumNative.FPDF_GetPageBoundingBox(page, out var rect))
             {
                 throw new PdfiumException($"Failed to read bounding box of page {Index}");
@@ -85,13 +85,15 @@ public sealed partial class PdfPage :
 
     public void Dispose()
     {
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
+        // Checked and cleared under the lock so a call on another thread either completes
+        // first or sees the page as disposed.
         lock (PdfiumNative.Sync)
         {
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
             if (webLinkHandle != IntPtr.Zero)
             {
                 PdfiumNative.FPDFLink_CloseWebLinks(webLinkHandle);
@@ -106,8 +108,7 @@ public sealed partial class PdfPage :
 
             PdfiumNative.FPDF_ClosePage(handle);
             document.Untrack(this);
+            handle = IntPtr.Zero;
         }
-
-        handle = IntPtr.Zero;
     }
 }

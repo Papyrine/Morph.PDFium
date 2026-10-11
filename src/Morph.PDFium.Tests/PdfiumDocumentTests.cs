@@ -123,6 +123,31 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    public async Task DisposeDuringUseOnAnotherThread()
+    {
+        for (var iteration = 0; iteration < 20; iteration++)
+        {
+            var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+            var reader = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        document.GetPageSize(0);
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The only acceptable way for a call to lose the race with Dispose.
+                }
+            });
+            document.Dispose();
+            await reader;
+        }
+    }
+
+    [Test]
     public async Task DisposingDocumentClosesOpenPagesAndForms()
     {
         var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);

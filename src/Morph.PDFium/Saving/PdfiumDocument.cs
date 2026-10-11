@@ -17,7 +17,6 @@ public sealed partial class PdfiumDocument
     public unsafe void Save(Stream stream, SaveFlags flags = SaveFlags.None, int? pdfVersion = null)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        var doc = Handle;
         var state = new SaveState(stream);
         var context = GCHandle.Alloc(state);
         try
@@ -31,6 +30,7 @@ public sealed partial class PdfiumDocument
 
             lock (PdfiumNative.Sync)
             {
+                var doc = Handle;
                 var ok = pdfVersion is { } version
                     ? PdfiumNative.FPDF_SaveWithVersion(doc, in writer, (uint) flags, version)
                     : PdfiumNative.FPDF_SaveAsCopy(doc, in writer, (uint) flags);

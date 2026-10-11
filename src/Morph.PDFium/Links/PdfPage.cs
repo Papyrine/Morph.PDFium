@@ -8,10 +8,10 @@ public sealed partial class PdfPage
     /// </summary>
     public IReadOnlyList<PdfLink> GetLinks()
     {
-        var page = ValidHandle();
-        var doc = DocumentHandle;
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
+            var doc = DocumentHandle;
             var links = new List<PdfLink>();
             var position = 0;
             while (PdfiumNative.FPDFLink_Enumerate(page, ref position, out var link) && link != IntPtr.Zero)
@@ -31,10 +31,9 @@ public sealed partial class PdfPage
     /// <summary>The URLs implicitly detected in the page's text, each with the rectangles it covers.</summary>
     public IReadOnlyList<PdfWebLink> GetWebLinks()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var linkPage = WebLinkHandle();
             var count = PdfiumNative.FPDFLink_CountWebLinks(linkPage);
             if (count <= 0)

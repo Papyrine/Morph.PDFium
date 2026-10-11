@@ -7,9 +7,9 @@ public sealed partial class PdfPage
     /// <summary>Reads the page content objects (text, paths, images, ...) with their bounding boxes.</summary>
     public IReadOnlyList<PdfPageObject> GetObjects()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var count = PdfiumNative.FPDFPage_CountObjects(page);
             if (count <= 0)
             {
@@ -44,11 +44,11 @@ public sealed partial class PdfPage
     public void AddText(string text, double x, double y, string fontName = "Helvetica", double fontSize = 12, PdfColor? color = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
-        var page = ValidHandle();
-        var doc = DocumentHandle;
         var font = Encoding.ASCII.GetBytes(fontName + '\0');
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
+            var doc = DocumentHandle;
             var obj = PdfiumNative.FPDFPageObj_NewTextObj(doc, font, (float) fontSize);
             if (obj == IntPtr.Zero)
             {
@@ -79,9 +79,9 @@ public sealed partial class PdfPage
     /// </summary>
     public void AddRectangle(PdfRectangle rectangle, PdfColor fill, PdfColor? stroke = null)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var obj = PdfiumNative.FPDFPageObj_CreateNewRect((float) rectangle.Left, (float) rectangle.Bottom, (float) rectangle.Width, (float) rectangle.Height);
             if (obj == IntPtr.Zero)
             {
@@ -111,9 +111,9 @@ public sealed partial class PdfPage
     /// </summary>
     public IReadOnlyList<PdfStructureElement> GetStructureTree()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var tree = PdfiumNative.FPDF_StructTree_GetForPage(page);
             if (tree == IntPtr.Zero)
             {
@@ -171,9 +171,9 @@ public sealed partial class PdfPage
     /// </summary>
     public byte[]? GetEmbeddedThumbnail()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var length = PdfiumNative.FPDFPage_GetDecodedThumbnailData(page, [], 0);
             if (length == 0)
             {

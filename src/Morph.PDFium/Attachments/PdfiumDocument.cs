@@ -7,9 +7,9 @@ public sealed partial class PdfiumDocument
     {
         get
         {
-            var doc = Handle;
             lock (PdfiumNative.Sync)
             {
+                var doc = Handle;
                 return Math.Max(0, PdfiumNative.FPDFDoc_GetAttachmentCount(doc));
             }
         }
@@ -18,9 +18,9 @@ public sealed partial class PdfiumDocument
     /// <summary>The embedded file attachments in the document.</summary>
     public IReadOnlyList<PdfAttachment> GetAttachments()
     {
-        var doc = Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             var count = PdfiumNative.FPDFDoc_GetAttachmentCount(doc);
             if (count <= 0)
             {
@@ -49,10 +49,10 @@ public sealed partial class PdfiumDocument
     public PdfAttachment AddAttachment(string name, ReadOnlySpan<byte> contents)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        var doc = Handle;
         var wideName = Interop.ToWideString(name);
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             var handle = PdfiumNative.FPDFDoc_AddAttachment(doc, wideName);
             if (handle == IntPtr.Zero)
             {
@@ -88,9 +88,9 @@ public sealed partial class PdfiumDocument
     /// <summary>Removes the attachment at <paramref name="index"/> from the embedded files name tree.</summary>
     public void DeleteAttachment(int index)
     {
-        var doc = Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             if (!PdfiumNative.FPDFDoc_DeleteAttachment(doc, index))
             {
                 throw new PdfiumException($"Failed to delete attachment at index {index}");

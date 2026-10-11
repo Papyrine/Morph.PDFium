@@ -10,17 +10,17 @@ public sealed partial class PdfPage
     {
         get
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
+                var page = ValidHandle();
                 return (PageRotation) PdfiumNative.FPDFPage_GetRotation(page);
             }
         }
         set
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
+                var page = ValidHandle();
                 PdfiumNative.FPDFPage_SetRotation(page, (int) value);
             }
         }
@@ -31,9 +31,9 @@ public sealed partial class PdfPage
     {
         get
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
+                var page = ValidHandle();
                 return PdfiumNative.FPDFPage_CountObjects(page);
             }
         }
@@ -42,9 +42,9 @@ public sealed partial class PdfPage
     /// <summary>Whether the page contains any transparent content.</summary>
     public bool HasTransparency()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             return PdfiumNative.FPDFPage_HasTransparency(page);
         }
     }
@@ -55,9 +55,9 @@ public sealed partial class PdfPage
     /// </summary>
     public bool Flatten(bool forPrinting = false)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var result = PdfiumNative.FPDFPage_Flatten(page, forPrinting ? PdfiumNative.FlatPrint : PdfiumNative.FlatNormalDisplay);
             if (result == 0)
             {
@@ -75,9 +75,9 @@ public sealed partial class PdfPage
     /// </summary>
     public void GenerateContent()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             if (!PdfiumNative.FPDFPage_GenerateContent(page))
             {
                 throw new PdfiumException($"Failed to generate content for page {Index}");

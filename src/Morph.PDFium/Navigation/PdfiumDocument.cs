@@ -13,9 +13,9 @@ public sealed partial class PdfiumDocument
     /// </summary>
     public IReadOnlyList<PdfBookmark> GetBookmarks()
     {
-        var doc = Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             return ReadSiblings(doc, PdfiumNative.FPDFBookmark_GetFirstChild(doc, IntPtr.Zero), [], 0);
         }
     }

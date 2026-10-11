@@ -8,10 +8,10 @@ public sealed partial class PdfiumDocument
     /// </summary>
     public PdfPage LoadPage(int index)
     {
-        var doc = Handle;
-        ValidateIndex(index);
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
+            ValidateIndex(index);
             var page = PdfiumNative.FPDF_LoadPage(doc, index);
             if (page == IntPtr.Zero)
             {
