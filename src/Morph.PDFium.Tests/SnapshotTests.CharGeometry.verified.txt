@@ -13,7 +13,8 @@
       X: 72.0,
       Y: 709.67138671875
     },
-    FontSize: 11.0
+    FontSize: 11.0,
+    CodePoint: 72
   },
   {
     Index: 1,
@@ -30,7 +31,8 @@
       X: 79.7770004272461,
       Y: 709.67138671875
     },
-    FontSize: 11.0
+    FontSize: 11.0,
+    CodePoint: 101
   },
   {
     Index: 2,
@@ -47,7 +49,8 @@
       X: 85.56300354003906,
       Y: 709.67138671875
     },
-    FontSize: 11.0
+    FontSize: 11.0,
+    CodePoint: 108
   },
   {
     Index: 3,
@@ -64,7 +67,8 @@
       X: 88.42300415039062,
       Y: 709.67138671875
     },
-    FontSize: 11.0
+    FontSize: 11.0,
+    CodePoint: 108
   },
   {
     Index: 4,
@@ -81,6 +85,7 @@
       X: 91.28300476074219,
       Y: 709.67138671875
     },
-    FontSize: 11.0
+    FontSize: 11.0,
+    CodePoint: 111
   }
 ]

@@ -40,5 +40,6 @@ public class TextTests
         var chars = page.GetChars();
         await Assert.That(chars.Count).IsGreaterThan(0);
         await Assert.That(chars[0].FontSize).IsGreaterThan(0);
+        await Assert.That(chars[0].CodePoint).IsEqualTo(chars[0].Char);
     }
 }
