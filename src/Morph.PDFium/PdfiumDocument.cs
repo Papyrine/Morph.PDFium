@@ -14,6 +14,9 @@ public sealed partial class PdfiumDocument :
     IntPtr handle;
     // Not readonly: page import/insert/delete change the count, so mutators refresh it.
     int pageCount;
+    // Pages and form sessions still open on this document. PDFium requires them to be
+    // closed before the document, so Dispose closes whatever the caller left open.
+    readonly List<IDisposable> children = [];
 
     PdfiumDocument(GCHandle pinnedBytes, IntPtr handle, int pageCount)
     {
@@ -229,8 +232,16 @@ public sealed partial class PdfiumDocument :
 
             var width = region?.Width ?? ToPixels(size.Width, dpi);
             var height = region?.Height ?? ToPixels(size.Height, dpi);
+            // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
+            // the bitmap it describes, and the render would write past the end of it.
+            var byteCount = (long) width * 4 * height;
+            if (byteCount > Array.MaxLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(dpi), dpi, $"A {width}x{height} bitmap for page {index} exceeds the maximum buffer size");
+            }
+
             var stride = width * 4;
-            var pixels = new byte[stride * height];
+            var pixels = new byte[byteCount];
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
@@ -328,7 +339,7 @@ public sealed partial class PdfiumDocument :
             _ => $"error code {error}"
         };
 
-    void ValidateIndex(int index)
+    internal void ValidateIndex(int index)
     {
         if (index < 0 || index >= pageCount)
         {
@@ -353,6 +364,22 @@ public sealed partial class PdfiumDocument :
         }
     }
 
+    internal void Track(IDisposable child)
+    {
+        lock (PdfiumNative.Sync)
+        {
+            children.Add(child);
+        }
+    }
+
+    internal void Untrack(IDisposable child)
+    {
+        lock (PdfiumNative.Sync)
+        {
+            children.Remove(child);
+        }
+    }
+
     public void Dispose()
     {
         // Checked and cleared under the lock so a call on another thread either completes
@@ -362,6 +389,22 @@ public sealed partial class PdfiumDocument :
             if (handle == IntPtr.Zero)
             {
                 return;
+            }
+
+            // Each child untracks itself as it is disposed, hence the copy. Pages go first
+            // so none outlives a form session.
+            IDisposable[] open = [.. children];
+            foreach (var child in open)
+            {
+                if (child is PdfPage)
+                {
+                    child.Dispose();
+                }
+            }
+
+            foreach (var child in open)
+            {
+                child.Dispose();
             }
 
             PdfiumNative.FPDF_CloseDocument(handle);

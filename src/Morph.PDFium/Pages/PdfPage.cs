@@ -21,6 +21,7 @@ public sealed partial class PdfPage :
         this.document = document;
         this.handle = handle;
         Index = index;
+        document.Track(this);
     }
 
     /// <summary>The zero-based index of this page within its document.</summary>
@@ -106,6 +107,7 @@ public sealed partial class PdfPage :
             }
 
             PdfiumNative.FPDF_ClosePage(handle);
+            document.Untrack(this);
             handle = IntPtr.Zero;
         }
     }

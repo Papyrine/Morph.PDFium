@@ -17,7 +17,8 @@ public sealed partial class PdfiumDocument
     public unsafe void Save(Stream stream, SaveFlags flags = SaveFlags.None, int? pdfVersion = null)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        var context = GCHandle.Alloc(stream);
+        var state = new SaveState(stream);
+        var context = GCHandle.Alloc(state);
         try
         {
             var writer = new PdfiumNative.FileWrite
@@ -33,6 +34,9 @@ public sealed partial class PdfiumDocument
                 var ok = pdfVersion is { } version
                     ? PdfiumNative.FPDF_SaveWithVersion(doc, in writer, (uint) flags, version)
                     : PdfiumNative.FPDF_SaveAsCopy(doc, in writer, (uint) flags);
+                // PDFium can report success even though a write was refused, so a captured
+                // stream exception decides the outcome ahead of the native result.
+                state.Error?.Throw();
                 if (!ok)
                 {
                     throw new PdfiumException("Failed to save document");
@@ -45,25 +49,33 @@ public sealed partial class PdfiumDocument
         }
     }
 
+    // The destination stream plus the exception, if any, that it threw part way through a save.
+    sealed class SaveState(Stream stream)
+    {
+        public Stream Stream { get; } = stream;
+        public ExceptionDispatchInfo? Error { get; set; }
+    }
+
     // Invoked by PDFium for each block of output. `self` points at the FileWrite struct we
-    // passed in; its Context slot carries the GCHandle to the destination stream.
+    // passed in; its Context slot carries the GCHandle to the save state.
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     static unsafe int WriteBlock(PdfiumNative.FileWrite* self, void* data, uint size)
     {
-        if (GCHandle.FromIntPtr(self->Context).Target is not Stream stream)
+        if (GCHandle.FromIntPtr(self->Context).Target is not SaveState state)
         {
             return 0;
         }
 
         try
         {
-            stream.Write(new(data, (int) size));
+            state.Stream.Write(new(data, (int) size));
             return 1;
         }
-        catch
+        catch (Exception exception)
         {
             // Surfacing managed exceptions across the native boundary is undefined; signal
-            // failure to PDFium instead and let FPDF_SaveAsCopy report it as a failed save.
+            // failure to PDFium instead and let Save rethrow once the native call returns.
+            state.Error ??= ExceptionDispatchInfo.Capture(exception);
             return 0;
         }
     }

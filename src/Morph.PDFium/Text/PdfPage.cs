@@ -89,7 +89,12 @@ public sealed partial class PdfPage
                     ? new PdfPoint(x, y)
                     : default;
                 var fontSize = PdfiumNative.FPDFText_GetFontSize(text, index);
-                chars.Add(new(index, (char) unicode, box, origin, fontSize));
+                // A plain cast would truncate a code point above U+FFFF to an unrelated character.
+                var value = unicode > char.MaxValue ? '�' : (char) unicode;
+                chars.Add(new(index, value, box, origin, fontSize)
+                {
+                    CodePoint = (int) unicode
+                });
             }
 
             return chars;

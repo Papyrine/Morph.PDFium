@@ -37,9 +37,11 @@ static partial class PdfiumNative
     [LibraryImport(library)]
     internal static partial uint FPDFAttachment_GetSubtype(IntPtr attachment, Span<byte> buffer, uint length);
 
+    // outLength is `unsigned long*`. Unlike a by-value length, PDFium writes the full native
+    // width through the pointer (8 bytes outside Windows), so it must be a CULong, not a uint.
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool FPDFAttachment_GetFile(IntPtr attachment, Span<byte> buffer, uint length, out uint outLength);
+    internal static partial bool FPDFAttachment_GetFile(IntPtr attachment, Span<byte> buffer, uint length, out CULong outLength);
 
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]

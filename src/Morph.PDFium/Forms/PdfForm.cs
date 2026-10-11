@@ -48,6 +48,7 @@ public sealed class PdfForm :
         this.document = document;
         this.handle = handle;
         this.pinnedInfo = pinnedInfo;
+        document.Track(this);
     }
 
     internal static PdfForm Create(PdfiumDocument document)
@@ -143,6 +144,11 @@ public sealed class PdfForm :
     public byte[] RenderPage(int index, RenderOptions? options = null)
     {
         options ??= new();
+        if (options.Dpi <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
+        }
+
         byte[] pixels;
         int width;
         int height;
@@ -150,6 +156,9 @@ public sealed class PdfForm :
         lock (PdfiumNative.Sync)
         {
             var form = ValidHandle();
+            // Touch the document so a disposed document surfaces as ObjectDisposedException.
+            _ = document.Handle;
+            document.ValidateIndex(index);
             (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
         }
 
@@ -168,6 +177,7 @@ public sealed class PdfForm :
             }
 
             PdfiumNative.FPDFDOC_ExitFormFillEnvironment(handle);
+            document.Untrack(this);
             handle = IntPtr.Zero;
             if (pinnedInfo.IsAllocated)
             {
