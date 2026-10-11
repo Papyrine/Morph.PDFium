@@ -44,11 +44,12 @@ public sealed class PdfAttachment
     {
         lock (PdfiumNative.Sync)
         {
-            if (!PdfiumNative.FPDFAttachment_GetFile(handle, [], 0, out var length) || length == 0)
+            if (!PdfiumNative.FPDFAttachment_GetFile(handle, [], 0, out var required) || required.Value == 0)
             {
                 return [];
             }
 
+            var length = checked((uint) required.Value);
             var buffer = new byte[length];
             if (!PdfiumNative.FPDFAttachment_GetFile(handle, buffer, length, out _))
             {

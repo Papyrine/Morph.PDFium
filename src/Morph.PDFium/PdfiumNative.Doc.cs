@@ -40,7 +40,7 @@ static partial class PdfiumNative
     internal static partial int FPDFDest_GetDestPageIndex(IntPtr document, IntPtr dest);
 
     [LibraryImport(library)]
-    internal static partial uint FPDFDest_GetView(IntPtr dest, out uint numParams, Span<float> parameters);
+    internal static partial uint FPDFDest_GetView(IntPtr dest, out CULong numParams, Span<float> parameters);
 
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
