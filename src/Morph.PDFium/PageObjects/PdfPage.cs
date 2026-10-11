@@ -144,9 +144,9 @@ public sealed partial class PdfPage
 
     static PdfStructureElement ReadStructureElement(IntPtr element, int depth)
     {
-        var type = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDF_StructElement_GetType(element, buffer, length));
-        var title = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDF_StructElement_GetTitle(element, buffer, length));
-        var altText = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDF_StructElement_GetAltText(element, buffer, length));
+        var type = Interop.Utf16ByLength(element, static (state, buffer, length) => PdfiumNative.FPDF_StructElement_GetType(state, buffer, length));
+        var title = Interop.Utf16ByLength(element, static (state, buffer, length) => PdfiumNative.FPDF_StructElement_GetTitle(state, buffer, length));
+        var altText = Interop.Utf16ByLength(element, static (state, buffer, length) => PdfiumNative.FPDF_StructElement_GetAltText(state, buffer, length));
 
         var children = new List<PdfStructureElement>();
         if (depth < maxStructureDepth)

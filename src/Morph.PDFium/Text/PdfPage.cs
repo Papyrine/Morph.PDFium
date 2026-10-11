@@ -42,7 +42,7 @@ public sealed partial class PdfPage
             // FPDFText_GetText rejects a negative count outright, so resolve -1 and clamp
             // an over-long range here rather than letting it fail.
             var units = count < 0 ? available : Math.Min(count, available);
-            return Interop.Utf16ByUnits(units, (buffer, length) => PdfiumNative.FPDFText_GetText(text, startIndex, units, buffer[..length]));
+            return Interop.Utf16ByUnits(units, (text, startIndex, units), static (state, buffer, _) => PdfiumNative.FPDFText_GetText(state.text, state.startIndex, state.units, buffer));
         }
     }
 
@@ -57,8 +57,8 @@ public sealed partial class PdfPage
             ValidHandle();
             var text = TextHandle();
             var units = PdfiumNative.FPDFText_GetBoundedText(text, rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom, [], 0);
-            return Interop.Utf16ByUnits(units,
-                (buffer, length) => PdfiumNative.FPDFText_GetBoundedText(text, rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom, buffer[..length], length));
+            return Interop.Utf16ByUnits(units, (text, rectangle),
+                static (state, buffer, length) => PdfiumNative.FPDFText_GetBoundedText(state.text, state.rectangle.Left, state.rectangle.Top, state.rectangle.Right, state.rectangle.Bottom, buffer, length));
         }
     }
 

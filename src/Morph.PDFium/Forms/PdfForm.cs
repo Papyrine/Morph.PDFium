@@ -120,8 +120,8 @@ public sealed class PdfForm :
                     }
 
                     var type = (FormFieldType) PdfiumNative.FPDFAnnot_GetFormFieldType(form, annot);
-                    var name = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAnnot_GetFormFieldName(form, annot, buffer, length)) ?? string.Empty;
-                    var value = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFAnnot_GetFormFieldValue(form, annot, buffer, length));
+                    var name = Interop.Utf16ByLength((form, annot), static (state, buffer, length) => PdfiumNative.FPDFAnnot_GetFormFieldName(state.form, state.annot, buffer, length)) ?? string.Empty;
+                    var value = Interop.Utf16ByLength((form, annot), static (state, buffer, length) => PdfiumNative.FPDFAnnot_GetFormFieldValue(state.form, state.annot, buffer, length));
                     var rectangle = PdfiumNative.FPDFAnnot_GetRect(annot, out var rect)
                         ? new PdfRectangle(rect.Left, rect.Bottom, rect.Right, rect.Top)
                         : default;

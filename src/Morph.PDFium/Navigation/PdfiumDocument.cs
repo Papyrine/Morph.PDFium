@@ -25,7 +25,7 @@ public sealed partial class PdfiumDocument
         var result = new List<PdfBookmark>();
         while (bookmark != IntPtr.Zero && depth < maxBookmarkDepth && visited.Add(bookmark))
         {
-            var title = Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDFBookmark_GetTitle(bookmark, buffer, length)) ?? string.Empty;
+            var title = Interop.Utf16ByLength(bookmark, static (state, buffer, length) => PdfiumNative.FPDFBookmark_GetTitle(state, buffer, length)) ?? string.Empty;
             var destination = Navigation.ReadDestination(doc, PdfiumNative.FPDFBookmark_GetDest(doc, bookmark));
             var action = destination is null ? Navigation.ReadAction(doc, PdfiumNative.FPDFBookmark_GetAction(bookmark)) : null;
             var children = ReadSiblings(doc, PdfiumNative.FPDFBookmark_GetFirstChild(doc, bookmark), visited, depth + 1);

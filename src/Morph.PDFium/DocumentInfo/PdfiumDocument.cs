@@ -92,7 +92,7 @@ public sealed partial class PdfiumDocument
         {
             var doc = Handle;
             ValidateIndex(index);
-            return Interop.Utf16ByLength((buffer, length) => PdfiumNative.FPDF_GetPageLabel(doc, index, buffer, length));
+            return Interop.Utf16ByLength((doc, index), static (state, buffer, length) => PdfiumNative.FPDF_GetPageLabel(state.doc, state.index, buffer, length));
         }
     }
 
