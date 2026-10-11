@@ -98,6 +98,31 @@ public class PdfiumDocumentTests
         await Assert.That(() => document.RenderPage(0)).Throws<ObjectDisposedException>();
     }
 
+    [Test]
+    public async Task DisposeDuringUseOnAnotherThread()
+    {
+        for (var iteration = 0; iteration < 20; iteration++)
+        {
+            var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+            var reader = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        document.GetPageSize(0);
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The only acceptable way for a call to lose the race with Dispose.
+                }
+            });
+            document.Dispose();
+            await reader;
+        }
+    }
+
     static (int width, int height) ReadPngSize(byte[] png)
     {
         // IHDR data starts at offset 16: 8 byte signature + 4 byte length + 4 byte type

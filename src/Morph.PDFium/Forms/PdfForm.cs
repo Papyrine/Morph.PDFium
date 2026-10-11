@@ -52,11 +52,11 @@ public sealed class PdfForm :
 
     internal static PdfForm Create(PdfiumDocument document)
     {
-        var doc = document.Handle;
-        var info = new PdfiumNative.FormFillInfo[] { new() { Version = 2 } };
-        var pinned = GCHandle.Alloc(info, GCHandleType.Pinned);
         lock (PdfiumNative.Sync)
         {
+            var doc = document.Handle;
+            var info = new PdfiumNative.FormFillInfo[] { new() { Version = 2 } };
+            var pinned = GCHandle.Alloc(info, GCHandleType.Pinned);
             var handle = PdfiumNative.FPDFDOC_InitFormFillEnvironment(doc, pinned.AddrOfPinnedObject());
             if (handle == IntPtr.Zero)
             {
@@ -77,9 +77,9 @@ public sealed class PdfForm :
     /// <summary>Sets the highlight color (RGB) and opacity drawn behind form fields when rendering.</summary>
     public void SetHighlight(PdfColor color)
     {
-        var form = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var form = ValidHandle();
             // FPDF_FORMFIELD_UNKNOWN (0) applies the color to every field type.
             var rgb = ((uint) color.R << 16) | ((uint) color.G << 8) | color.B;
             PdfiumNative.FPDF_SetFormFieldHighlightColor(form, 0, rgb);
@@ -91,10 +91,10 @@ public sealed class PdfForm :
     public IReadOnlyList<PdfFormField> GetFields(PdfPage page)
     {
         ArgumentNullException.ThrowIfNull(page);
-        var form = ValidHandle();
-        var pageHandle = page.ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var form = ValidHandle();
+            var pageHandle = page.ValidHandle();
             var count = PdfiumNative.FPDFPage_GetAnnotCount(pageHandle);
             if (count <= 0)
             {
@@ -143,27 +143,36 @@ public sealed class PdfForm :
     public byte[] RenderPage(int index, RenderOptions? options = null)
     {
         options ??= new();
-        var form = ValidHandle();
-        var (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
+        byte[] pixels;
+        int width;
+        int height;
+        // Held across the render so the form cannot be disposed between the check and its use.
+        lock (PdfiumNative.Sync)
+        {
+            var form = ValidHandle();
+            (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
+        }
+
         return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
 
     public void Dispose()
     {
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
+        // Checked and cleared under the lock so a call on another thread either completes
+        // first or sees the form as disposed.
         lock (PdfiumNative.Sync)
         {
-            PdfiumNative.FPDFDOC_ExitFormFillEnvironment(handle);
-        }
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
 
-        handle = IntPtr.Zero;
-        if (pinnedInfo.IsAllocated)
-        {
-            pinnedInfo.Free();
+            PdfiumNative.FPDFDOC_ExitFormFillEnvironment(handle);
+            handle = IntPtr.Zero;
+            if (pinnedInfo.IsAllocated)
+            {
+                pinnedInfo.Free();
+            }
         }
     }
 }

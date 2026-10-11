@@ -7,10 +7,9 @@ public sealed partial class PdfPage
     {
         get
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
-                _ = page;
+                ValidHandle();
                 return Math.Max(0, PdfiumNative.FPDFText_CountChars(TextHandle()));
             }
         }
@@ -30,10 +29,9 @@ public sealed partial class PdfPage
     public string? GetText(int startIndex, int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var text = TextHandle();
             var available = PdfiumNative.FPDFText_CountChars(text) - startIndex;
             if (available <= 0)
@@ -54,10 +52,9 @@ public sealed partial class PdfPage
     /// </summary>
     public string? GetTextInRectangle(PdfRectangle rectangle)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var text = TextHandle();
             var units = PdfiumNative.FPDFText_GetBoundedText(text, rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom, [], 0);
             return Interop.Utf16ByUnits(units,
@@ -71,10 +68,9 @@ public sealed partial class PdfPage
     /// </summary>
     public IReadOnlyList<PdfTextChar> GetChars()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var text = TextHandle();
             var count = PdfiumNative.FPDFText_CountChars(text);
             if (count <= 0)
@@ -107,10 +103,9 @@ public sealed partial class PdfPage
     /// </summary>
     public IReadOnlyList<PdfRectangle> GetTextRectangles(int startIndex = 0, int count = -1)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var text = TextHandle();
             var rectCount = PdfiumNative.FPDFText_CountRects(text, startIndex, count);
             if (rectCount <= 0)
@@ -137,10 +132,9 @@ public sealed partial class PdfPage
     /// </summary>
     public int GetCharIndexAt(double x, double y, double xTolerance, double yTolerance)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             return PdfiumNative.FPDFText_GetCharIndexAtPos(TextHandle(), x, y, xTolerance, yTolerance);
         }
     }
@@ -152,13 +146,12 @@ public sealed partial class PdfPage
     public IReadOnlyList<PdfTextMatch> Search(string query, TextSearchOptions options = TextSearchOptions.None)
     {
         ArgumentException.ThrowIfNullOrEmpty(query);
-        var page = ValidHandle();
         var pattern = Interop.ToWideString(query);
         var flags = (uint) options; // MatchCase=1, MatchWholeWord=2 line up with PDFium's bits.
 
         lock (PdfiumNative.Sync)
         {
-            _ = page;
+            ValidHandle();
             var search = PdfiumNative.FPDFText_FindStart(TextHandle(), pattern, flags, 0);
             if (search == IntPtr.Zero)
             {

@@ -5,9 +5,9 @@ public sealed partial class PdfiumDocument
     /// <summary>The kind of interactive form the document carries (or <see cref="FormType.None"/>).</summary>
     public FormType GetFormType()
     {
-        var doc = Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             return (FormType) PdfiumNative.FPDF_GetFormType(doc);
         }
     }

@@ -105,10 +105,10 @@ public sealed partial class PdfiumDocument :
     /// <summary>Page dimensions in PDF points (1/72 inch).</summary>
     public PageSize GetPageSize(int index)
     {
-        ThrowIfDisposed();
-        ValidateIndex(index);
         lock (PdfiumNative.Sync)
         {
+            ThrowIfDisposed();
+            ValidateIndex(index);
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -145,10 +145,10 @@ public sealed partial class PdfiumDocument :
     /// <summary>Document information dictionary entries that have a value.</summary>
     public Dictionary<string, string>? GetProperties()
     {
-        ThrowIfDisposed();
         Dictionary<string, string>? properties = null;
         lock (PdfiumNative.Sync)
         {
+            ThrowIfDisposed();
             foreach (var (name, tag) in metadataTags)
             {
                 // Returns the required buffer size in bytes for the UTF-16LE value
@@ -219,6 +219,9 @@ public sealed partial class PdfiumDocument :
     {
         lock (PdfiumNative.Sync)
         {
+            // Callers validate up front, but only a check made under the lock is safe
+            // against a Dispose on another thread.
+            ThrowIfDisposed();
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
@@ -352,21 +355,22 @@ public sealed partial class PdfiumDocument :
 
     public void Dispose()
     {
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
+        // Checked and cleared under the lock so a call on another thread either completes
+        // first or sees the document as disposed.
         lock (PdfiumNative.Sync)
         {
-            PdfiumNative.FPDF_CloseDocument(handle);
-        }
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
 
-        handle = IntPtr.Zero;
-        // Documents created in memory (CreateNew) have no pinned source buffer.
-        if (pinnedBytes.IsAllocated)
-        {
-            pinnedBytes.Free();
+            PdfiumNative.FPDF_CloseDocument(handle);
+            handle = IntPtr.Zero;
+            // Documents created in memory (CreateNew) have no pinned source buffer.
+            if (pinnedBytes.IsAllocated)
+            {
+                pinnedBytes.Free();
+            }
         }
     }
 }

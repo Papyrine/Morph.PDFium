@@ -9,9 +9,9 @@ public sealed partial class PdfPage
     {
         get
         {
-            var page = ValidHandle();
             lock (PdfiumNative.Sync)
             {
+                var page = ValidHandle();
                 return Math.Max(0, PdfiumNative.FPDFPage_GetAnnotCount(page));
             }
         }
@@ -23,9 +23,9 @@ public sealed partial class PdfPage
     /// </summary>
     public IReadOnlyList<PdfAnnotation> GetAnnotations()
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var count = PdfiumNative.FPDFPage_GetAnnotCount(page);
             if (count <= 0)
             {
@@ -61,9 +61,9 @@ public sealed partial class PdfPage
     /// </summary>
     public PdfAnnotation AddAnnotation(PdfAnnotationType type, PdfRectangle rectangle, string? contents = null)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             var annot = PdfiumNative.FPDFPage_CreateAnnot(page, (int) type);
             if (annot == IntPtr.Zero)
             {
@@ -92,9 +92,9 @@ public sealed partial class PdfPage
     /// <summary>Removes the annotation at <paramref name="index"/>.</summary>
     public void RemoveAnnotation(int index)
     {
-        var page = ValidHandle();
         lock (PdfiumNative.Sync)
         {
+            var page = ValidHandle();
             if (!PdfiumNative.FPDFPage_RemoveAnnot(page, index))
             {
                 throw new PdfiumException($"Failed to remove annotation at index {index}");

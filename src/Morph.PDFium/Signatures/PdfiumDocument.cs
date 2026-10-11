@@ -7,9 +7,9 @@ public sealed partial class PdfiumDocument
     {
         get
         {
-            var doc = Handle;
             lock (PdfiumNative.Sync)
             {
+                var doc = Handle;
                 return Math.Max(0, PdfiumNative.FPDF_GetSignatureCount(doc));
             }
         }
@@ -18,9 +18,9 @@ public sealed partial class PdfiumDocument
     /// <summary>The digital signatures in the document, read into managed records.</summary>
     public IReadOnlyList<PdfSignature> GetSignatures()
     {
-        var doc = Handle;
         lock (PdfiumNative.Sync)
         {
+            var doc = Handle;
             var count = PdfiumNative.FPDF_GetSignatureCount(doc);
             if (count <= 0)
             {
