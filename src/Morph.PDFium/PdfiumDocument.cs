@@ -241,7 +241,8 @@ public sealed partial class PdfiumDocument :
             }
 
             var stride = width * 4;
-            var pixels = new byte[byteCount];
+            // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
+            var pixels = GC.AllocateUninitializedArray<byte>((int) byteCount);
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
@@ -274,7 +275,12 @@ public sealed partial class PdfiumDocument :
 
                     try
                     {
-                        _ = PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background);
+                        // The buffer is uninitialised, so a failed fill must not go on to be encoded.
+                        if (PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background) == 0)
+                        {
+                            throw new PdfiumException($"Failed to fill {width}x{height} bitmap for page {index}");
+                        }
+
                         if (region is { } clip)
                         {
                             // Map page space (origin bottom-left) into the bitmap (origin top-left).
