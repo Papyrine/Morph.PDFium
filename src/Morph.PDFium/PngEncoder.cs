@@ -14,7 +14,7 @@ static class PngEncoder
         stream.Write(signature);
         WriteChunk(stream, "IHDR"u8, BuildHeader(width, height));
         WriteChunk(stream, "pHYs"u8, BuildPhysicalDimensions(dpi));
-        WriteChunk(stream, "IDAT"u8, Compress(rgba, width, height));
+        WriteImageData(stream, rgba, width, height);
         WriteChunk(stream, "IEND"u8, []);
         return stream.ToArray();
     }
@@ -40,10 +40,28 @@ static class PngEncoder
         return chunk;
     }
 
-    static byte[] Compress(byte[] rgba, int width, int height)
+    // Writes the IDAT chunk. The compressed data goes straight into the output, and the chunk
+    // length and CRC, which are only known once it is all written, are filled in afterwards.
+    // That avoids compressing into a buffer of its own and copying the result across.
+    static void WriteImageData(MemoryStream stream, byte[] rgba, int width, int height)
+    {
+        var start = (int) stream.Position;
+        Span<byte> word = stackalloc byte[4];
+        stream.Write(word); // length, patched below
+        stream.Write("IDAT"u8);
+        Compress(stream, rgba, width, height);
+
+        var chunk = stream.GetBuffer().AsSpan(start, (int) stream.Position - start);
+        BinaryPrimitives.WriteInt32BigEndian(chunk, chunk.Length - 8);
+        // The CRC covers the chunk type and data but not the length.
+        var crc = UpdateCrc(uint.MaxValue, chunk[4..]);
+        BinaryPrimitives.WriteUInt32BigEndian(word, crc ^ uint.MaxValue);
+        stream.Write(word);
+    }
+
+    static void Compress(Stream output, byte[] rgba, int width, int height)
     {
         var stride = width * 4;
-        using var output = new MemoryStream();
         using (var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
         {
             // The Up filter encodes each row as a delta from the row above. Page renders
@@ -61,8 +79,6 @@ static class PngEncoder
                 previous = row;
             }
         }
-
-        return output.ToArray();
     }
 
     // destination = left - right per byte, wrapping. The spans are all one row long.
