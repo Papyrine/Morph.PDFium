@@ -49,23 +49,39 @@ static class PngEncoder
             // The Up filter encodes each row as a delta from the row above. Page renders
             // are dominated by vertically repeating runs (white background, margins,
             // fills), which become zero runs once Up-filtered and deflate to near nothing.
-            var previous = new byte[stride];
+            // The row above the first is defined as all zeros.
+            ReadOnlySpan<byte> previous = new byte[stride];
             var filtered = new byte[stride];
             for (var y = 0; y < height; y++)
             {
                 var row = rgba.AsSpan(y * stride, stride);
-                for (var x = 0; x < stride; x++)
-                {
-                    filtered[x] = (byte) (row[x] - previous[x]);
-                }
-
+                Subtract(row, previous, filtered);
                 zlib.WriteByte(2); // filter: Up
                 zlib.Write(filtered);
-                row.CopyTo(previous);
+                previous = row;
             }
         }
 
         return output.ToArray();
+    }
+
+    // destination = left - right per byte, wrapping. The spans are all one row long.
+    static void Subtract(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, Span<byte> destination)
+    {
+        var index = 0;
+        if (Vector.IsHardwareAccelerated)
+        {
+            for (; index <= left.Length - Vector<byte>.Count; index += Vector<byte>.Count)
+            {
+                var difference = new Vector<byte>(left[index..]) - new Vector<byte>(right[index..]);
+                difference.CopyTo(destination[index..]);
+            }
+        }
+
+        for (; index < left.Length; index++)
+        {
+            destination[index] = (byte) (left[index] - right[index]);
+        }
     }
 
     static void WriteChunk(Stream stream, ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)
