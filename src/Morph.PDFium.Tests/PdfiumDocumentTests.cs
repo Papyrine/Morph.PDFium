@@ -118,6 +118,30 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    public async Task UndisposedDocumentReleasesItsSourceBytes()
+    {
+        var bytes = LoadWithoutDisposing();
+        // The first collection queues the finalizer, which unpins the bytes; the second can
+        // then reclaim them.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        await Assert.That(bytes.IsAlive).IsFalse();
+    }
+
+    // Not inlined, so nothing in the caller's frame keeps the document or its bytes alive.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static WeakReference LoadWithoutDisposing()
+    {
+        var bytes = File.ReadAllBytes(ProjectFiles.sample_pdf);
+        var document = PdfiumDocument.Load(bytes);
+        // Leave a page and a form session open too: the finalizer has to close those first.
+        _ = document.LoadPage(0);
+        _ = document.LoadForm();
+        return new(bytes);
+    }
+
+    [Test]
     public async Task InvalidPdfThrows()
     {
         var exception = await Assert.That(() => PdfiumDocument.Load("not a pdf"u8.ToArray()))
