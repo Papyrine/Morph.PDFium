@@ -33,7 +33,8 @@ static class PngEncoder
     static byte[] BuildPhysicalDimensions(double dpi)
     {
         var chunk = new byte[9];
-        var pixelsPerMeter = (uint) Math.Round(dpi / 0.0254);
+        // PNG limits its four byte integers to 31 bits, and decoders reject a larger value.
+        var pixelsPerMeter = (uint) Math.Min(Math.Round(dpi / 0.0254), int.MaxValue);
         BinaryPrimitives.WriteUInt32BigEndian(chunk, pixelsPerMeter);
         BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(4), pixelsPerMeter);
         chunk[8] = 1; // unit: meter

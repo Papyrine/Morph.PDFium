@@ -86,6 +86,23 @@ public class FormRenderTests
         await Assert.That(topHalf.Length).IsGreaterThan(bottomHalf.Length * 2);
     }
 
+    // A dpi this high is only reachable with a tiny clip, but it must still give a valid PNG.
+    [Test]
+    public async Task PhysicalDimensionsStayWithinPngLimit()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var options = new RenderOptions
+        {
+            Dpi = 100_000_000
+        };
+        var png = document.RenderRegion(0, new(0, 0, 0.01, 0.01), options);
+
+        // The pHYs chunk follows the 8 byte signature and the 25 byte IHDR chunk.
+        await Assert.That(png.AsSpan(37, 4).SequenceEqual("pHYs"u8)).IsTrue();
+        await Assert.That(BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(41))).IsEqualTo((uint) int.MaxValue);
+        await Assert.That(BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(45))).IsEqualTo((uint) int.MaxValue);
+    }
+
     static (int width, int height) ReadPngSize(byte[] png)
     {
         var width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16));
