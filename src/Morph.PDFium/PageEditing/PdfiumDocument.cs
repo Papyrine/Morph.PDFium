@@ -32,6 +32,17 @@ public sealed partial class PdfiumDocument
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
         }
 
+        // PDFium accepts any numbers here and stores them as the page's media box, NaN included.
+        if (!double.IsFinite(width) || width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Page width must be positive and finite");
+        }
+
+        if (!double.IsFinite(height) || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Page height must be positive and finite");
+        }
+
         lock (PdfiumNative.Sync)
         {
             var doc = Handle;
@@ -77,6 +88,12 @@ public sealed partial class PdfiumDocument
     public void ImportPages(PdfiumDocument source, string? pageRange = null, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(source);
+        // PDFium reads an empty range the same as no range at all, and would import everything.
+        if (pageRange is not null && string.IsNullOrWhiteSpace(pageRange))
+        {
+            throw new ArgumentException("Page range must name at least one page; pass null to import every page.", nameof(pageRange));
+        }
+
         var range = pageRange is null ? default : Encoding.ASCII.GetBytes(pageRange + '\0');
         lock (PdfiumNative.Sync)
         {
@@ -97,7 +114,7 @@ public sealed partial class PdfiumDocument
     /// <summary>
     /// Imports the pages at the given zero-based <paramref name="pageIndices"/> from
     /// <paramref name="source"/> into this document, inserting them before the page at
-    /// <paramref name="index"/>, or appending them when it is null.
+    /// <paramref name="index"/>, or appending them when it is null. An empty list imports nothing.
     /// </summary>
     public void ImportPages(PdfiumDocument source, ReadOnlySpan<int> pageIndices, int? index = null)
     {
@@ -106,6 +123,13 @@ public sealed partial class PdfiumDocument
         {
             var doc = Handle;
             var src = source.Handle;
+            // Nothing to import. This cannot be left to PDFium: an empty span may reach it as
+            // a null pointer, which it takes to mean every page.
+            if (pageIndices.IsEmpty)
+            {
+                return;
+            }
+
             source.GeneratePendingContent();
             if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index ?? pageCount))
             {

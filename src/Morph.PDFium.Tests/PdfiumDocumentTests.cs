@@ -27,6 +27,17 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    [Arguments(0)]
+    [Arguments(10)]
+    public async Task LoadFromStreamWithNothingLeftThrows(int pastEnd)
+    {
+        var pdf = await File.ReadAllBytesAsync(ProjectFiles.sample_pdf);
+        using var stream = new MemoryStream(pdf);
+        stream.Position = pdf.Length + pastEnd;
+        await Assert.That(() => PdfiumDocument.Load(stream)).Throws<PdfiumException>();
+    }
+
+    [Test]
     public async Task LoadFromNonSeekableStream()
     {
         await using var stream = new NonSeekableStream(await File.ReadAllBytesAsync(ProjectFiles.sample_pdf));
@@ -104,6 +115,30 @@ public class PdfiumDocumentTests
         await Assert.That(() => PdfiumDocument.Load((byte[]) null!)).Throws<ArgumentNullException>();
         await Assert.That(() => PdfiumDocument.Load((Stream) null!)).Throws<ArgumentNullException>();
         await Assert.That(() => PdfiumDocument.Load((string) null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task UndisposedDocumentReleasesItsSourceBytes()
+    {
+        var bytes = LoadWithoutDisposing();
+        // The first collection queues the finalizer, which unpins the bytes; the second can
+        // then reclaim them.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        await Assert.That(bytes.IsAlive).IsFalse();
+    }
+
+    // Not inlined, so nothing in the caller's frame keeps the document or its bytes alive.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static WeakReference LoadWithoutDisposing()
+    {
+        var bytes = File.ReadAllBytes(ProjectFiles.sample_pdf);
+        var document = PdfiumDocument.Load(bytes);
+        // Leave a page and a form session open too: the finalizer has to close those first.
+        _ = document.LoadPage(0);
+        _ = document.LoadForm();
+        return new(bytes);
     }
 
     [Test]

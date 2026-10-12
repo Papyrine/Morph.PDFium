@@ -103,6 +103,59 @@ public class FormRenderTests
         await Assert.That(BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(45))).IsEqualTo((uint) int.MaxValue);
     }
 
+    // One line of text on a page whose media box does not start at the origin, and the same
+    // on a page rotated a quarter turn. On both, page coordinates and the displayed page
+    // differ, which they do not on the sample files.
+    static byte[] PdfWithOffsetAndRotatedPages() =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [100 200 500 700] /Contents 4 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 24 Tf 120 660 Td (OFFSET) Tj ET"),
+            [5] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            [6] = CraftedPdf.Stream("BT /F1 24 Tf 72 700 Td (ROTATED) Tj ET"),
+            [7] = CraftedPdf.Helvetica
+        });
+
+    [Test]
+    [Arguments(0)]
+    [Arguments(1)]
+    public async Task RenderRegionTakesPageCoordinates(int index)
+    {
+        using var document = PdfiumDocument.Load(PdfWithOffsetAndRotatedPages());
+        using var page = document.LoadPage(index);
+        // The rectangle the text API reports for the page's only line of text.
+        var text = page.GetTextRectangles().Single();
+        var options = new RenderOptions
+        {
+            Dpi = 144
+        };
+
+        var onText = document.RenderRegion(index, text, options);
+        // The same size of rectangle, moved well clear of the text.
+        var offText = document.RenderRegion(index, new(text.Left, text.Bottom - 100, text.Right, text.Top - 100), options);
+
+        // A blank region deflates to almost nothing, so content shows up as extra bytes.
+        await Assert.That(ReadPngSize(onText)).IsEqualTo(ReadPngSize(offText));
+        await Assert.That(onText.Length).IsGreaterThan(offText.Length * 3);
+    }
+
+    [Test]
+    public async Task RenderRegionOnRotatedPageSwapsWidthAndHeight()
+    {
+        using var document = PdfiumDocument.Load(PdfWithOffsetAndRotatedPages());
+        // 200 x 50 points in page coordinates, on a page displayed a quarter turn round.
+        var png = document.RenderRegion(
+            1,
+            new(50, 600, 250, 650),
+            new()
+            {
+                Dpi = 72
+            });
+        await Assert.That(ReadPngSize(png)).IsEqualTo((50, 200));
+    }
+
     static (int width, int height) ReadPngSize(byte[] png)
     {
         var width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16));

@@ -18,9 +18,12 @@ public sealed partial class PdfiumDocument
     }
 
     /// <summary>
-    /// Renders only the <paramref name="clip"/> rectangle of a page (page points), scaled to
+    /// Renders only the <paramref name="clip"/> rectangle of a page, scaled to
     /// <paramref name="options"/>.Dpi, to a PNG. Useful for tiles, thumbnails of a region, or
-    /// zoomed views.
+    /// zoomed views. The rectangle is in page coordinates, the same space that text, link
+    /// and annotation rectangles are reported in, so one of those can be passed straight in.
+    /// The image shows the area as the page displays it, so on a page rotated a quarter turn
+    /// its width and height are swapped relative to the rectangle.
     /// </summary>
     public byte[] RenderRegion(int index, PdfRectangle clip, RenderOptions? options = null)
     {
@@ -38,10 +41,7 @@ public sealed partial class PdfiumDocument
             throw new ArgumentOutOfRangeException(nameof(clip), clip, "clip must have positive, finite width and height");
         }
 
-        var width = Math.Max(1, (int) Math.Round(clip.Width * options.Dpi / 72d));
-        var height = Math.Max(1, (int) Math.Round(clip.Height * options.Dpi / 72d));
-        var region = new ClipRegion(clip, width, height);
-        var (pixels, w, h) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), region);
-        return PngEncoder.Encode(pixels, w, h, options.Dpi);
+        var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
+        return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
 }

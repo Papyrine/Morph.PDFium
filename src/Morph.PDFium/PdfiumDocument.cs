@@ -35,7 +35,9 @@ public sealed partial class PdfiumDocument :
         // exactly that size instead of growing a buffer and then copying out of it.
         if (stream.CanSeek)
         {
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) (stream.Length - stream.Position)));
+            // A position beyond the end leaves nothing to read, the same as being at the end.
+            var remaining = Math.Max(0, stream.Length - stream.Position);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) remaining));
             stream.ReadExactly(bytes);
             return Load(bytes, password);
         }
@@ -222,14 +224,11 @@ public sealed partial class PdfiumDocument :
     // Byte-order agnostic: every channel is 0xFF.
     internal const uint OpaqueWhite = 0xFFFFFFFF;
 
-    // A sub-region of the page to render, in page points, scaled into a target pixel buffer.
-    internal readonly record struct ClipRegion(PdfRectangle Clip, int Width, int Height);
-
     // Shared rasteriser. renderFlags carries caller options (annotations, grayscale, ...);
     // ReverseByteOrder is always added so PDFium emits RGBA matching the PNG encoder. background
-    // must already be in the bitmap's byte order (see RenderOptions.ToFillColor). When region is
-    // null the whole page is rendered; otherwise a clipped/scaled matrix render runs.
-    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, uint background, ClipRegion? region, IntPtr formHandle = default)
+    // must already be in the bitmap's byte order (see RenderOptions.ToFillColor). When clip is
+    // null the whole page is rendered; otherwise only that rectangle, given in page coordinates.
+    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = default)
     {
         lock (PdfiumNative.Sync)
         {
@@ -241,23 +240,6 @@ public sealed partial class PdfiumDocument :
             {
                 throw new PdfiumException($"Failed to read size of page {index}");
             }
-
-            var width = region?.Width ?? ToPixels(size.Width, dpi);
-            var height = region?.Height ?? ToPixels(size.Height, dpi);
-            // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
-            // the bitmap it describes, and the render would write past the end of it.
-            // Compare the pixel count rather than the byte count: at the largest dimensions
-            // even a 64 bit byte count wraps, whereas width * height always fits.
-            var pixelCount = (long) width * height;
-            if (pixelCount > Array.MaxLength / 4)
-            {
-                throw new ArgumentOutOfRangeException(nameof(dpi), dpi, $"A {width}x{height} bitmap for page {index} exceeds the maximum buffer size");
-            }
-
-            var stride = width * 4;
-            // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
-            var pixels = GC.AllocateUninitializedArray<byte>((int) (pixelCount * 4));
-            var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
             if (page == IntPtr.Zero)
@@ -273,65 +255,7 @@ public sealed partial class PdfiumDocument :
 
             try
             {
-                var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
-                try
-                {
-                    var bitmap = PdfiumNative.FPDFBitmap_CreateEx(
-                        width,
-                        height,
-                        PdfiumNative.FormatBgra,
-                        pinned.AddrOfPinnedObject(),
-                        stride);
-                    if (bitmap == IntPtr.Zero)
-                    {
-                        throw new PdfiumException($"Failed to allocate {width}x{height} bitmap for page {index}");
-                    }
-
-                    try
-                    {
-                        // The buffer is uninitialised, so a failed fill must not go on to be encoded.
-                        if (PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background) == 0)
-                        {
-                            throw new PdfiumException($"Failed to fill {width}x{height} bitmap for page {index}");
-                        }
-
-                        if (region is { } clip)
-                        {
-                            // PDFium applies this matrix after its own display matrix, so the input
-                            // is not page space: it is already in points with the origin at the top
-                            // left and y running down. Only a scale and a shift of the clip's top-left
-                            // corner to the bitmap origin are needed, with no flip of our own.
-                            var scaleX = width / clip.Clip.Width;
-                            var scaleY = height / clip.Clip.Height;
-                            var matrix = new FsMatrix
-                            {
-                                A = (float) scaleX,
-                                D = (float) scaleY,
-                                E = (float) (-clip.Clip.Left * scaleX),
-                                F = (float) (-(size.Height - clip.Clip.Top) * scaleY)
-                            };
-                            var clipping = new FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
-                            PdfiumNative.FPDF_RenderPageBitmapWithMatrix(bitmap, page, in matrix, in clipping, flags);
-                        }
-                        else
-                        {
-                            PdfiumNative.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, flags);
-                            // Draw interactive form fields (widgets) on top of the page content.
-                            if (formHandle != IntPtr.Zero)
-                            {
-                                PdfiumNative.FPDF_FFLDraw(formHandle, bitmap, page, 0, 0, width, height, 0, flags);
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        PdfiumNative.FPDFBitmap_Destroy(bitmap);
-                    }
-                }
-                finally
-                {
-                    pinned.Free();
-                }
+                return RenderLoadedPage(page, size, index, dpi, renderFlags | PdfiumNative.ReverseByteOrder, background, clip, formHandle);
             }
             finally
             {
@@ -342,12 +266,125 @@ public sealed partial class PdfiumDocument :
 
                 PdfiumNative.FPDF_ClosePage(page);
             }
-
-            return (pixels, width, height);
         }
     }
 
-    static int ToPixels(float points, double dpi) =>
+    // Caller must hold PdfiumNative.Sync.
+    static (byte[] pixels, int width, int height) RenderLoadedPage(IntPtr page, PdfiumNative.PageSizeF size, int index, double dpi, int flags, uint background, PdfRectangle? clip, IntPtr formHandle)
+    {
+        // The part of the displayed page to draw, in points from its top-left corner.
+        var area = (Left: 0d, Top: 0d, Width: (double) size.Width, Height: (double) size.Height);
+        if (clip is { } rectangle)
+        {
+            area = ToDisplayArea(page, size, rectangle, index);
+        }
+
+        var width = ToPixels(area.Width, dpi);
+        var height = ToPixels(area.Height, dpi);
+        // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
+        // the bitmap it describes, and the render would write past the end of it.
+        // Compare the pixel count rather than the byte count: at the largest dimensions
+        // even a 64 bit byte count wraps, whereas width * height always fits.
+        var pixelCount = (long) width * height;
+        if (pixelCount > Array.MaxLength / 4)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dpi), dpi, $"A {width}x{height} bitmap for page {index} exceeds the maximum buffer size");
+        }
+
+        var stride = width * 4;
+        // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
+        var pixels = GC.AllocateUninitializedArray<byte>((int) (pixelCount * 4));
+        var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+        try
+        {
+            var bitmap = PdfiumNative.FPDFBitmap_CreateEx(
+                width,
+                height,
+                PdfiumNative.FormatBgra,
+                pinned.AddrOfPinnedObject(),
+                stride);
+            if (bitmap == IntPtr.Zero)
+            {
+                throw new PdfiumException($"Failed to allocate {width}x{height} bitmap for page {index}");
+            }
+
+            try
+            {
+                // The buffer is uninitialised, so a failed fill must not go on to be encoded.
+                if (PdfiumNative.FPDFBitmap_FillRect(bitmap, 0, 0, width, height, background) == 0)
+                {
+                    throw new PdfiumException($"Failed to fill {width}x{height} bitmap for page {index}");
+                }
+
+                if (clip is null)
+                {
+                    PdfiumNative.FPDF_RenderPageBitmap(bitmap, page, 0, 0, width, height, 0, flags);
+                    // Draw interactive form fields (widgets) on top of the page content.
+                    if (formHandle != IntPtr.Zero)
+                    {
+                        PdfiumNative.FPDF_FFLDraw(formHandle, bitmap, page, 0, 0, width, height, 0, flags);
+                    }
+                }
+                else
+                {
+                    // PDFium applies this matrix after its own display matrix, so the input is
+                    // the displayed page: points from its top-left corner with y running down.
+                    // Only a scale and a shift of the area's corner to the bitmap origin are
+                    // needed.
+                    var scaleX = width / area.Width;
+                    var scaleY = height / area.Height;
+                    var matrix = new FsMatrix
+                    {
+                        A = (float) scaleX,
+                        D = (float) scaleY,
+                        E = (float) (-area.Left * scaleX),
+                        F = (float) (-area.Top * scaleY)
+                    };
+                    var clipping = new FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
+                    PdfiumNative.FPDF_RenderPageBitmapWithMatrix(bitmap, page, in matrix, in clipping, flags);
+                }
+            }
+            finally
+            {
+                PdfiumNative.FPDFBitmap_Destroy(bitmap);
+            }
+        }
+        finally
+        {
+            pinned.Free();
+        }
+
+        return (pixels, width, height);
+    }
+
+    // Caller must hold PdfiumNative.Sync. Converts a rectangle in page coordinates, the
+    // space text, link and annotation rectangles are reported in, to the area it covers on
+    // the displayed page. The two differ when the page is rotated or when its media or crop
+    // box does not start at the origin, and a quarter turn swaps the width and height.
+    static (double Left, double Top, double Width, double Height) ToDisplayArea(IntPtr page, PdfiumNative.PageSizeF size, PdfRectangle clip, int index)
+    {
+        // FPDF_PageToDevice answers in whole device units, so ask about a device this many
+        // times the page's size in points to keep precision below a point.
+        const int unitsPerPoint = 1000;
+        var deviceWidth = (int) Math.Round(size.Width * unitsPerPoint);
+        var deviceHeight = (int) Math.Round(size.Height * unitsPerPoint);
+        if (!PdfiumNative.FPDF_PageToDevice(page, 0, 0, deviceWidth, deviceHeight, 0, clip.Left, clip.Top, out var x1, out var y1) ||
+            !PdfiumNative.FPDF_PageToDevice(page, 0, 0, deviceWidth, deviceHeight, 0, clip.Right, clip.Bottom, out var x2, out var y2))
+        {
+            throw new PdfiumException($"Failed to map the clip rectangle onto page {index}");
+        }
+
+        // At least one device unit each way, so the scale computed from it stays finite.
+        var width = Math.Max(1, Math.Abs((long) x2 - x1));
+        var height = Math.Max(1, Math.Abs((long) y2 - y1));
+        return (
+            (double) Math.Min(x1, x2) / unitsPerPoint,
+            (double) Math.Min(y1, y2) / unitsPerPoint,
+            (double) width / unitsPerPoint,
+            (double) height / unitsPerPoint);
+    }
+
+    static int ToPixels(double points, double dpi) =>
         Math.Max(1, (int) Math.Round(points * dpi / 72d));
 
     static string MapLoadError(uint error) =>
@@ -417,8 +454,16 @@ public sealed partial class PdfiumDocument :
         }
     }
 
+    // Safety net for a document that is never disposed. Without it the source bytes would
+    // stay pinned, and the native document allocated, for the rest of the process. The pages
+    // and form sessions it closes are plain managed objects with no finalizers of their own,
+    // so they are still intact when this runs.
+    ~PdfiumDocument() =>
+        Dispose();
+
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         // Checked and cleared under the lock so a call on another thread either completes
         // first or sees the document as disposed.
         lock (PdfiumNative.Sync)

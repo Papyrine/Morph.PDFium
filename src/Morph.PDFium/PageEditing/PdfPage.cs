@@ -52,6 +52,9 @@ public sealed partial class PdfPage
     /// <summary>
     /// Flattens annotations and form fields into the page content stream. Returns false when
     /// there was nothing to flatten. Persist the result with <see cref="PdfiumDocument.Save(SaveFlags,int?)"/>.
+    /// Every annotation is removed from the page in the process. Those with an appearance are
+    /// drawn into the content first; those without one, link annotations included, are simply
+    /// dropped, so the page's links stop working.
     /// </summary>
     public bool Flatten(bool forPrinting = false)
     {
@@ -66,7 +69,27 @@ public sealed partial class PdfPage
             }
 
             // 1 == flattened, 2 == nothing to do.
-            return result == 1;
+            if (result != 1)
+            {
+                return false;
+            }
+
+            // PDFium rewrites the page's stored content but leaves this open handle holding
+            // the page as it was before. Editing through it would regenerate the content
+            // from that stale copy and silently drop what was just flattened, so swap it for
+            // a freshly loaded one. A page deleted from its document cannot be reloaded.
+            if (Index >= 0)
+            {
+                CloseText();
+                PdfiumNative.FPDF_ClosePage(handle);
+                handle = PdfiumNative.FPDF_LoadPage(DocumentHandle, Index);
+                if (handle == IntPtr.Zero)
+                {
+                    throw new PdfiumException($"Failed to reload page {Index} after flattening");
+                }
+            }
+
+            return true;
         }
     }
 
