@@ -19,8 +19,7 @@ public sealed partial class PdfPage
                 var rectangle = PdfiumNative.FPDFLink_GetAnnotRect(link, out var rect)
                     ? new PdfRectangle(rect.Left, rect.Bottom, rect.Right, rect.Top)
                     : default;
-                var destination = Navigation.ReadDestination(doc, PdfiumNative.FPDFLink_GetDest(doc, link));
-                var action = destination is null ? Navigation.ReadAction(doc, PdfiumNative.FPDFLink_GetAction(link)) : null;
+                var (destination, action) = Navigation.ReadTarget(doc, PdfiumNative.FPDFLink_GetDest(doc, link), PdfiumNative.FPDFLink_GetAction(link));
                 links.Add(new(rectangle, destination, action));
             }
 
