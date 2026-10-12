@@ -99,6 +99,14 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    public async Task LoadNullThrows()
+    {
+        await Assert.That(() => PdfiumDocument.Load((byte[]) null!)).Throws<ArgumentNullException>();
+        await Assert.That(() => PdfiumDocument.Load((Stream) null!)).Throws<ArgumentNullException>();
+        await Assert.That(() => PdfiumDocument.Load((string) null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public async Task InvalidPdfThrows()
     {
         var exception = await Assert.That(() => PdfiumDocument.Load("not a pdf"u8.ToArray()))

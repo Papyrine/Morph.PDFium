@@ -30,6 +30,7 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(Stream stream, string? password = null)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         // A seekable stream reports how much is left, so read it straight into an array of
         // exactly that size instead of growing a buffer and then copying out of it.
         if (stream.CanSeek)
@@ -46,6 +47,7 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(byte[] bytes, string? password = null)
     {
+        ArgumentNullException.ThrowIfNull(bytes);
         var pinned = GCHandle.Alloc(bytes, GCHandleType.Pinned);
         try
         {
