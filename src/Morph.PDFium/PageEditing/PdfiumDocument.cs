@@ -32,6 +32,17 @@ public sealed partial class PdfiumDocument
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
         }
 
+        // PDFium accepts any numbers here and stores them as the page's media box, NaN included.
+        if (!double.IsFinite(width) || width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), width, "Page width must be positive and finite");
+        }
+
+        if (!double.IsFinite(height) || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), height, "Page height must be positive and finite");
+        }
+
         lock (PdfiumNative.Sync)
         {
             var doc = Handle;

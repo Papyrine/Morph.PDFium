@@ -34,6 +34,19 @@ public class EditTests
     }
 
     [Test]
+    [Arguments(double.NaN, 100)]
+    [Arguments(100, double.NaN)]
+    [Arguments(double.PositiveInfinity, 100)]
+    [Arguments(0, 100)]
+    [Arguments(100, -5)]
+    public async Task NewPageRejectsUnusableSizes(double width, double height)
+    {
+        using var document = PdfiumDocument.CreateNew();
+        await Assert.That(() => document.NewPage(0, width, height)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(document.PageCount).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task OpenPageIndexFollowsInsertsAndDeletes()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
