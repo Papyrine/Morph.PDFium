@@ -77,6 +77,31 @@ static class Navigation
         return new(pageIndex, x, y, zoom);
     }
 
+    /// <summary>
+    /// Works out where a link or bookmark leads from its two native handles.
+    /// <paramref name="dest"/> is what FPDFLink_GetDest / FPDFBookmark_GetDest returned. Those
+    /// calls fall back to the destination inside the item's action, whatever kind of action
+    /// it is, so on their own they make a jump into another file look like a jump within
+    /// this one. The action is therefore consulted first: only an item with no action, or
+    /// with a plain GoTo action, is reported as a destination in this document.
+    /// </summary>
+    public static (PdfDestination? Destination, PdfAction? Action) ReadTarget(IntPtr document, IntPtr dest, IntPtr action)
+    {
+        if (action != IntPtr.Zero &&
+            (PdfActionType) PdfiumNative.FPDFAction_GetType(action) != PdfActionType.GoTo)
+        {
+            return (null, ReadAction(document, action));
+        }
+
+        var destination = ReadDestination(document, dest);
+        if (destination is null)
+        {
+            return (null, ReadAction(document, action));
+        }
+
+        return (destination, null);
+    }
+
     public static PdfAction? ReadAction(IntPtr document, IntPtr action)
     {
         if (action == IntPtr.Zero)
