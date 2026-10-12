@@ -3,7 +3,9 @@
 /// <summary>
 /// An embedded file attachment. The handle stays valid for the lifetime of the owning
 /// document, so instances need not be disposed; using one after its document has been
-/// disposed throws <see cref="ObjectDisposedException"/>.
+/// disposed throws <see cref="ObjectDisposedException"/>, and using one after it has been
+/// removed with <see cref="PdfiumDocument.DeleteAttachment"/> throws
+/// <see cref="InvalidOperationException"/>.
 /// </summary>
 public sealed class PdfAttachment
 {
@@ -16,6 +18,17 @@ public sealed class PdfAttachment
         this.handle = handle;
     }
 
+    // Caller must hold PdfiumNative.Sync.
+    void ThrowIfUnusable()
+    {
+        // Touch the document so a disposed document surfaces as ObjectDisposedException.
+        _ = document.Handle;
+        if (document.IsAttachmentDeleted(handle))
+        {
+            throw new InvalidOperationException("The attachment has been deleted from its document.");
+        }
+    }
+
     /// <summary>The attachment's file name.</summary>
     public string Name
     {
@@ -23,7 +36,7 @@ public sealed class PdfAttachment
         {
             lock (PdfiumNative.Sync)
             {
-                _ = document.Handle;
+                ThrowIfUnusable();
                 return Interop.Utf16ByLength(handle, static (state, buffer, length) => PdfiumNative.FPDFAttachment_GetName(state, buffer, length)) ?? string.Empty;
             }
         }
@@ -36,7 +49,7 @@ public sealed class PdfAttachment
         {
             lock (PdfiumNative.Sync)
             {
-                _ = document.Handle;
+                ThrowIfUnusable();
                 return Interop.Utf16ByLength(handle, static (state, buffer, length) => PdfiumNative.FPDFAttachment_GetSubtype(state, buffer, length));
             }
         }
@@ -47,7 +60,7 @@ public sealed class PdfAttachment
     {
         lock (PdfiumNative.Sync)
         {
-            _ = document.Handle;
+            ThrowIfUnusable();
             if (!PdfiumNative.FPDFAttachment_GetFile(handle, [], 0, out var required) || required.Value == 0)
             {
                 return [];
@@ -70,6 +83,7 @@ public sealed class PdfAttachment
         lock (PdfiumNative.Sync)
         {
             var doc = document.Handle;
+            ThrowIfUnusable();
             if (!PdfiumNative.FPDFAttachment_SetFile(handle, doc, contents, (uint) contents.Length))
             {
                 throw new PdfiumException($"Failed to set data for attachment '{Name}'");
