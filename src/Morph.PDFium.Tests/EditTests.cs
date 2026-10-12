@@ -115,6 +115,25 @@ public class EditTests
     }
 
     [Test]
+    public async Task AttachmentAfterDeleteThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var deleted = document.AddAttachment("a.bin", [1, 2, 3]);
+        var kept = document.AddAttachment("b.bin", [4, 5]);
+        document.DeleteAttachment(0);
+
+        await Assert.That(() => deleted.Name).Throws<InvalidOperationException>();
+        await Assert.That(() => deleted.GetData()).Throws<InvalidOperationException>();
+        await Assert.That(() => deleted.SetData([9])).Throws<InvalidOperationException>();
+        await Assert.That(kept.Name).IsEqualTo("b.bin");
+        await Assert.That(document.GetAttachments().Single().Name).IsEqualTo("b.bin");
+
+        // The name is free again, and the new attachment is usable.
+        var again = document.AddAttachment("a.bin", [7]);
+        await Assert.That(again.GetData()).IsEquivalentTo(new byte[] { 7 });
+    }
+
+    [Test]
     public async Task AddAnnotation()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
