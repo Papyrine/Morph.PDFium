@@ -1,5 +1,3 @@
-using System.Text;
-
 /// <summary>
 /// Builds small PDFs by hand for features the sample files do not contain (rotated pages,
 /// offset page boxes, link actions, annotations with appearances). Each test supplies the

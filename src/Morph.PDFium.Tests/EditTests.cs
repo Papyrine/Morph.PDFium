@@ -159,7 +159,7 @@ public class EditTests
     public async Task SaveSurfacesStreamException()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
-        using var stream = new ThrowingStream();
+        await using var stream = new ThrowingStream();
         var exception = await Assert.That(() => document.Save(stream)).Throws<IOException>();
         await Assert.That(exception!.Message).IsEqualTo("disk full");
     }
