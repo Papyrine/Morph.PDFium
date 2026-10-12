@@ -293,15 +293,18 @@ public sealed partial class PdfiumDocument :
 
                         if (region is { } clip)
                         {
-                            // Map page space (origin bottom-left) into the bitmap (origin top-left).
+                            // PDFium applies this matrix after its own display matrix, so the input
+                            // is not page space: it is already in points with the origin at the top
+                            // left and y running down. Only a scale and a shift of the clip's top-left
+                            // corner to the bitmap origin are needed, with no flip of our own.
                             var scaleX = width / clip.Clip.Width;
                             var scaleY = height / clip.Clip.Height;
                             var matrix = new FsMatrix
                             {
                                 A = (float) scaleX,
-                                D = (float) -scaleY,
+                                D = (float) scaleY,
                                 E = (float) (-clip.Clip.Left * scaleX),
-                                F = (float) (clip.Clip.Top * scaleY)
+                                F = (float) (-(size.Height - clip.Clip.Top) * scaleY)
                             };
                             var clipping = new FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
                             PdfiumNative.FPDF_RenderPageBitmapWithMatrix(bitmap, page, in matrix, in clipping, flags);
