@@ -128,6 +128,39 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    [Arguments(double.NaN)]
+    [Arguments(double.PositiveInfinity)]
+    [Arguments(double.NegativeInfinity)]
+    [Arguments(0)]
+    public async Task NonFiniteOrNonPositiveDpiThrows(double dpi)
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var options = new RenderOptions
+        {
+            Dpi = dpi
+        };
+        await Assert.That(() => document.RenderPage(0, dpi)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderPage(0, options)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderRegion(0, new(0, 0, 100, 100), options)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    public async Task NonFiniteClipThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.RenderRegion(0, new(double.NaN, 0, 100, 100))).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderRegion(0, new(0, 0, double.PositiveInfinity, 100))).Throws<ArgumentOutOfRangeException>();
+    }
+
+    // Large enough that both dimensions saturate, which wrapped the old 64 bit byte count.
+    [Test]
+    public async Task SaturatedRenderSizeThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.RenderPage(0, 1e300)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
     public async Task OversizedRegionThrows()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
