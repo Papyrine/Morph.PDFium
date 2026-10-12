@@ -81,6 +81,34 @@ public class ObjectTests
     }
 
     [Test]
+    public async Task AddTextRoundTripsWindows1252()
+    {
+        // Latin-1 letters plus characters from the 0x80 to 0x9F range of Windows-1252.
+        const string text = "café €10 “quoted” – œuvre";
+        using var document = PdfiumDocument.CreateNew();
+        using (var page = document.NewPage(0, 400, 100))
+        {
+            page.AddText(text, 10, 50);
+        }
+
+        using var reloaded = PdfiumDocument.Load(document.Save());
+        using var reloadedPage = reloaded.LoadPage(0);
+        await Assert.That(reloadedPage.GetText()).IsEqualTo(text);
+    }
+
+    [Test]
+    [Arguments("中文")]
+    [Arguments("Ж")]
+    [Arguments("ok 😀")]
+    public async Task AddTextRejectsCharactersTheFontCannotEncode(string text)
+    {
+        using var document = PdfiumDocument.CreateNew();
+        using var page = document.NewPage(0, 400, 100);
+        await Assert.That(() => page.AddText(text, 10, 50)).Throws<ArgumentException>();
+        await Assert.That(page.ObjectCount).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task StructureTreeAndThumbnailDoNotThrow()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);

@@ -39,12 +39,15 @@ public sealed partial class PdfPage
     /// <summary>
     /// Adds a text object drawn at (<paramref name="x"/>, <paramref name="y"/>) in page points,
     /// using one of the standard 14 fonts. The page content stream is regenerated once, when
-    /// it is next needed (save, render or disposing the page), not on every call.
+    /// it is next needed (save, render or disposing the page), not on every call. Those fonts
+    /// only cover Windows-1252 (Western European) characters; text containing anything else
+    /// throws <see cref="ArgumentException"/>.
     /// </summary>
     public void AddText(string text, double x, double y, string fontName = "Helvetica", double fontSize = 12, PdfColor? color = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(text);
-        var font = Encoding.ASCII.GetBytes(fontName + '\0');
+        ThrowIfNotEncodable(text, fontName);
+        var font =Encoding.ASCII.GetBytes(fontName + '\0');
         lock (PdfiumNative.Sync)
         {
             var page = ValidHandle();
@@ -68,6 +71,30 @@ public sealed partial class PdfPage
             PdfiumNative.FPDFPage_InsertObject(page, obj);
             contentPending = true;
             CloseText();
+        }
+    }
+
+    // The characters Windows-1252 has beyond Latin-1 (its 0x80 to 0x9F range): the euro sign,
+    // curly quotes, dashes and so on.
+    const string windows1252Extras = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
+
+    // The standard fonts are single byte fonts covering Windows-1252. PDFium does not report
+    // a character outside that set: it writes a different one in its place, so the saved
+    // text is silently wrong. Reject such text up front instead.
+    static void ThrowIfNotEncodable(string text, string fontName)
+    {
+        // These two are symbol sets with encodings of their own, not text fonts.
+        if (fontName is "Symbol" or "ZapfDingbats")
+        {
+            return;
+        }
+
+        foreach (var character in text)
+        {
+            if (character > 0xFF && !windows1252Extras.Contains(character))
+            {
+                throw new ArgumentException($"Character '{character}' (U+{(int) character:X4}) cannot be written with font '{fontName}'. The standard fonts only cover Windows-1252.", nameof(text));
+            }
         }
     }
 
