@@ -62,22 +62,20 @@ static class PngEncoder
     static void Compress(Stream output, byte[] rgba, int width, int height)
     {
         var stride = width * 4;
-        using (var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
+        using var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true);
+        // The Up filter encodes each row as a delta from the row above. Page renders
+        // are dominated by vertically repeating runs (white background, margins,
+        // fills), which become zero runs once Up-filtered and deflate to near nothing.
+        // The row above the first is defined as all zeros.
+        ReadOnlySpan<byte> previous = new byte[stride];
+        var filtered = new byte[stride];
+        for (var y = 0; y < height; y++)
         {
-            // The Up filter encodes each row as a delta from the row above. Page renders
-            // are dominated by vertically repeating runs (white background, margins,
-            // fills), which become zero runs once Up-filtered and deflate to near nothing.
-            // The row above the first is defined as all zeros.
-            ReadOnlySpan<byte> previous = new byte[stride];
-            var filtered = new byte[stride];
-            for (var y = 0; y < height; y++)
-            {
-                var row = rgba.AsSpan(y * stride, stride);
-                Subtract(row, previous, filtered);
-                zlib.WriteByte(2); // filter: Up
-                zlib.Write(filtered);
-                previous = row;
-            }
+            var row = rgba.AsSpan(y * stride, stride);
+            Subtract(row, previous, filtered);
+            zlib.WriteByte(2); // filter: Up
+            zlib.Write(filtered);
+            previous = row;
         }
     }
 

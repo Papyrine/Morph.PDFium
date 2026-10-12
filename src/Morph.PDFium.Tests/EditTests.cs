@@ -74,7 +74,7 @@ public class EditTests
         var attachment = document.AddAttachment("data.bin", [1, 2, 3]);
         document.Dispose();
         await Assert.That(() => attachment.Name).Throws<ObjectDisposedException>();
-        await Assert.That(() => attachment.GetData()).Throws<ObjectDisposedException>();
+        await Assert.That(attachment.GetData).Throws<ObjectDisposedException>();
         await Assert.That(() => attachment.SetData([4])).Throws<ObjectDisposedException>();
     }
 

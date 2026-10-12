@@ -180,7 +180,7 @@ public class PdfiumDocumentTests
         var page = document.LoadPage(0);
         document.Dispose();
 
-        await Assert.That(() => page.GetText()).Throws<ObjectDisposedException>();
+        await Assert.That(page.GetText).Throws<ObjectDisposedException>();
         await Assert.That(() => form.SetHighlight(new(255, 255, 0, 100))).Throws<ObjectDisposedException>();
         // Already closed by the document, so these must not reach PDFium again.
         page.Dispose();
