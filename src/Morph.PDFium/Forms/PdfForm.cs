@@ -144,9 +144,9 @@ public sealed class PdfForm :
     public byte[] RenderPage(int index, RenderOptions? options = null)
     {
         options ??= new();
-        if (options.Dpi <= 0)
+        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
+            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
         }
 
         byte[] pixels;

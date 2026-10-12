@@ -8,9 +8,9 @@ public sealed partial class PdfiumDocument
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (options.Dpi <= 0)
+        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
+            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
         }
 
         var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null);
@@ -27,14 +27,15 @@ public sealed partial class PdfiumDocument
         options ??= new();
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (options.Dpi <= 0)
+        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive");
+            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
         }
 
-        if (clip.Width <= 0 || clip.Height <= 0)
+        // Written so that NaN, which fails every comparison, is rejected along with infinity.
+        if (!double.IsFinite(clip.Width) || !double.IsFinite(clip.Height) || clip.Width <= 0 || clip.Height <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(clip), clip, "clip must have positive width and height");
+            throw new ArgumentOutOfRangeException(nameof(clip), clip, "clip must have positive, finite width and height");
         }
 
         var width = Math.Max(1, (int) Math.Round(clip.Width * options.Dpi / 72d));
