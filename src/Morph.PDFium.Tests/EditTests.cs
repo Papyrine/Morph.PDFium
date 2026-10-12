@@ -34,6 +34,34 @@ public class EditTests
     }
 
     [Test]
+    public async Task OpenPageIndexFollowsInsertsAndDeletes()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var source = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        using var first = document.LoadPage(0);
+        using var third = document.LoadPage(2);
+
+        using var inserted = document.NewPage(1, 200, 200);
+        await Assert.That(first.Index).IsEqualTo(0);
+        await Assert.That(inserted.Index).IsEqualTo(1);
+        await Assert.That(third.Index).IsEqualTo(3);
+
+        document.ImportPages(source, index: 0);
+        await Assert.That(first.Index).IsEqualTo(1);
+        await Assert.That(inserted.Index).IsEqualTo(2);
+        await Assert.That(third.Index).IsEqualTo(4);
+
+        document.DeletePage(1);
+        await Assert.That(first.Index).IsEqualTo(-1);
+        await Assert.That(inserted.Index).IsEqualTo(1);
+        await Assert.That(third.Index).IsEqualTo(3);
+
+        // The index still identifies the same page.
+        using var reloaded = document.LoadPage(third.Index);
+        await Assert.That(reloaded.GetText()).IsEqualTo(third.GetText());
+    }
+
+    [Test]
     public async Task AttachmentRoundTrips()
     {
         byte[] payload = [1, 2, 3, 4, 5];

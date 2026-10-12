@@ -41,6 +41,7 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException($"Failed to create page at index {index}");
             }
 
+            ShiftOpenPages(index, 1);
             RefreshPageCount();
             return new(this, page, index);
         }
@@ -54,6 +55,15 @@ public sealed partial class PdfiumDocument
             var doc = Handle;
             ValidateIndex(index);
             PdfiumNative.FPDFPage_Delete(doc, index);
+            foreach (var child in children)
+            {
+                if (child is PdfPage page && page.Index == index)
+                {
+                    page.Index = -1;
+                }
+            }
+
+            ShiftOpenPages(index + 1, -1);
             RefreshPageCount();
         }
     }
@@ -77,7 +87,9 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException("Failed to import pages (invalid page range?)");
             }
 
+            var before = pageCount;
             RefreshPageCount();
+            ShiftOpenPages(index, pageCount - before);
         }
     }
 
@@ -98,7 +110,23 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException("Failed to import pages (invalid indices?)");
             }
 
+            var before = pageCount;
             RefreshPageCount();
+            ShiftOpenPages(index, pageCount - before);
+        }
+    }
+
+    // Caller must hold PdfiumNative.Sync. Keeps PdfPage.Index right for pages that are open
+    // when the page list changes: every open page at or after <paramref name="index"/> moves
+    // by <paramref name="count"/>.
+    void ShiftOpenPages(int index, int count)
+    {
+        foreach (var child in children)
+        {
+            if (child is PdfPage page && page.Index >= index)
+            {
+                page.Index += count;
+            }
         }
     }
 
