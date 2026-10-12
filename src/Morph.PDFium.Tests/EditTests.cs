@@ -79,6 +79,33 @@ public class EditTests
     }
 
     [Test]
+    public async Task ImportPagesWithNoIndicesImportsNothing()
+    {
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var target = PdfiumDocument.CreateNew();
+
+        // However the empty list is spelled: these reach PDFium as different pointers.
+        target.ImportPages(source, ReadOnlySpan<int>.Empty);
+        target.ImportPages(source, []);
+        target.ImportPages(source, new int[1].AsSpan(0, 0));
+        await Assert.That(target.PageCount).IsEqualTo(0);
+
+        target.ImportPages(source, [2]);
+        await Assert.That(target.PageCount).IsEqualTo(1);
+    }
+
+    [Test]
+    [Arguments("")]
+    [Arguments("  ")]
+    public async Task ImportPagesWithEmptyRangeThrows(string range)
+    {
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var target = PdfiumDocument.CreateNew();
+        await Assert.That(() => target.ImportPages(source, range)).Throws<ArgumentException>();
+        await Assert.That(target.PageCount).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task ImportPagesAtIndexInsertsBeforeIt()
     {
         using var first = PdfiumDocument.Load(ProjectFiles.sample_pdf);
