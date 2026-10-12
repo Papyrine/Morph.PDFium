@@ -161,6 +161,56 @@ public class EditTests
         await Assert.That(again.GetData()).IsEquivalentTo(new byte[] { 7 });
     }
 
+    // One page with a line of text and a stamp annotation whose appearance is a red square,
+    // which is something Flatten can turn into page content.
+    static byte[] PdfWithStamp() =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [6 0 R] >>",
+            [4] = CraftedPdf.Stream("BT /F1 24 Tf 72 700 Td (Original) Tj ET"),
+            [5] = CraftedPdf.Helvetica,
+            [6] = "<< /Type /Annot /Subtype /Stamp /Rect [400 300 500 400] /F 4 /AP << /N 7 0 R >> >>",
+            [7] = CraftedPdf.Stream("1 0 0 rg 0 0 100 100 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 100]")
+        });
+
+    [Test]
+    public async Task FlattenRefreshesThePage()
+    {
+        using var document = PdfiumDocument.Load(PdfWithStamp());
+        using var page = document.LoadPage(0);
+        await Assert.That(page.ObjectCount).IsEqualTo(1);
+
+        await Assert.That(page.Flatten()).IsTrue();
+
+        // The original text plus the flattened stamp.
+        await Assert.That(page.ObjectCount).IsEqualTo(2);
+        await Assert.That(page.AnnotationCount).IsEqualTo(0);
+        await Assert.That(page.Flatten()).IsFalse();
+    }
+
+    [Test]
+    public async Task EditingAfterFlattenKeepsTheFlattenedContent()
+    {
+        byte[] bytes;
+        using (var document = PdfiumDocument.Load(PdfWithStamp()))
+        {
+            using var page = document.LoadPage(0);
+            _ = page.GetText();
+            page.Flatten();
+            page.AddText("Added", 72, 100);
+            bytes = document.Save();
+        }
+
+        using var reloaded = PdfiumDocument.Load(bytes);
+        using var reloadedPage = reloaded.LoadPage(0);
+        // Original text, flattened stamp and the added text.
+        await Assert.That(reloadedPage.ObjectCount).IsEqualTo(3);
+        await Assert.That(reloadedPage.GetText()).Contains("Original");
+        await Assert.That(reloadedPage.GetText()).Contains("Added");
+    }
+
     [Test]
     public async Task AddAnnotation()
     {
