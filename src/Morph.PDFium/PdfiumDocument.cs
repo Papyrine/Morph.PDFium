@@ -417,8 +417,16 @@ public sealed partial class PdfiumDocument :
         }
     }
 
+    // Safety net for a document that is never disposed. Without it the source bytes would
+    // stay pinned, and the native document allocated, for the rest of the process. The pages
+    // and form sessions it closes are plain managed objects with no finalizers of their own,
+    // so they are still intact when this runs.
+    ~PdfiumDocument() =>
+        Dispose();
+
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
         // Checked and cleared under the lock so a call on another thread either completes
         // first or sees the document as disposed.
         lock (PdfiumNative.Sync)
