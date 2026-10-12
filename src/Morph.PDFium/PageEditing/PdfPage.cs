@@ -66,7 +66,27 @@ public sealed partial class PdfPage
             }
 
             // 1 == flattened, 2 == nothing to do.
-            return result == 1;
+            if (result != 1)
+            {
+                return false;
+            }
+
+            // PDFium rewrites the page's stored content but leaves this open handle holding
+            // the page as it was before. Editing through it would regenerate the content
+            // from that stale copy and silently drop what was just flattened, so swap it for
+            // a freshly loaded one. A page deleted from its document cannot be reloaded.
+            if (Index >= 0)
+            {
+                CloseText();
+                PdfiumNative.FPDF_ClosePage(handle);
+                handle = PdfiumNative.FPDF_LoadPage(DocumentHandle, Index);
+                if (handle == IntPtr.Zero)
+                {
+                    throw new PdfiumException($"Failed to reload page {Index} after flattening");
+                }
+            }
+
+            return true;
         }
     }
 
