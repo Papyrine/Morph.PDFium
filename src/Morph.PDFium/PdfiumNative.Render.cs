@@ -11,5 +11,9 @@ static partial class PdfiumNative
     public const int RenderNoSmoothPath = 0x4000;
 
     [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDF_PageToDevice(IntPtr page, int startX, int startY, int sizeX, int sizeY, int rotate, double pageX, double pageY, out int deviceX, out int deviceY);
+
+    [LibraryImport(library)]
     internal static partial void FPDF_RenderPageBitmapWithMatrix(IntPtr bitmap, IntPtr page, in FsMatrix matrix, in FsRectF clipping, int flags);
 }
