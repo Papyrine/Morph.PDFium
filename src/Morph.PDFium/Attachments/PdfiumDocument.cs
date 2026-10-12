@@ -2,6 +2,15 @@ namespace Morph.PDFium;
 
 public sealed partial class PdfiumDocument
 {
+    // Handles removed by DeleteAttachment. PDFium keeps the underlying object readable after
+    // it leaves the name tree, so a PdfAttachment for it would otherwise go on returning the
+    // deleted file's name and data as though it were still attached.
+    readonly HashSet<IntPtr> deletedAttachments = [];
+
+    // Caller must hold PdfiumNative.Sync.
+    internal bool IsAttachmentDeleted(IntPtr attachment) =>
+        deletedAttachments.Contains(attachment);
+
     /// <summary>The number of embedded file attachments in the document.</summary>
     public int AttachmentCount
     {
@@ -66,6 +75,8 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException($"Failed to write data for attachment '{name}'");
             }
 
+            // In case PDFium reuses the address of an attachment deleted earlier.
+            deletedAttachments.Remove(handle);
             return new(this, handle);
         }
     }
@@ -91,10 +102,13 @@ public sealed partial class PdfiumDocument
         lock (PdfiumNative.Sync)
         {
             var doc = Handle;
+            var attachment = PdfiumNative.FPDFDoc_GetAttachment(doc, index);
             if (!PdfiumNative.FPDFDoc_DeleteAttachment(doc, index))
             {
                 throw new PdfiumException($"Failed to delete attachment at index {index}");
             }
+
+            deletedAttachments.Add(attachment);
         }
     }
 }

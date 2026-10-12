@@ -30,6 +30,7 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(Stream stream, string? password = null)
     {
+        ArgumentNullException.ThrowIfNull(stream);
         // A seekable stream reports how much is left, so read it straight into an array of
         // exactly that size instead of growing a buffer and then copying out of it.
         if (stream.CanSeek)
@@ -46,6 +47,7 @@ public sealed partial class PdfiumDocument :
 
     public static PdfiumDocument Load(byte[] bytes, string? password = null)
     {
+        ArgumentNullException.ThrowIfNull(bytes);
         var pinned = GCHandle.Alloc(bytes, GCHandleType.Pinned);
         try
         {
@@ -195,9 +197,9 @@ public sealed partial class PdfiumDocument :
     {
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (dpi <= 0)
+        if (!double.IsFinite(dpi) || dpi <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "dpi must be positive");
+            throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "dpi must be positive and finite");
         }
 
         var (pixels, width, height) = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
@@ -244,15 +246,17 @@ public sealed partial class PdfiumDocument :
             var height = region?.Height ?? ToPixels(size.Height, dpi);
             // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
             // the bitmap it describes, and the render would write past the end of it.
-            var byteCount = (long) width * 4 * height;
-            if (byteCount > Array.MaxLength)
+            // Compare the pixel count rather than the byte count: at the largest dimensions
+            // even a 64 bit byte count wraps, whereas width * height always fits.
+            var pixelCount = (long) width * height;
+            if (pixelCount > Array.MaxLength / 4)
             {
                 throw new ArgumentOutOfRangeException(nameof(dpi), dpi, $"A {width}x{height} bitmap for page {index} exceeds the maximum buffer size");
             }
 
             var stride = width * 4;
             // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
-            var pixels = GC.AllocateUninitializedArray<byte>((int) byteCount);
+            var pixels = GC.AllocateUninitializedArray<byte>((int) (pixelCount * 4));
             var flags = renderFlags | PdfiumNative.ReverseByteOrder;
 
             var page = PdfiumNative.FPDF_LoadPage(handle, index);
@@ -293,15 +297,18 @@ public sealed partial class PdfiumDocument :
 
                         if (region is { } clip)
                         {
-                            // Map page space (origin bottom-left) into the bitmap (origin top-left).
+                            // PDFium applies this matrix after its own display matrix, so the input
+                            // is not page space: it is already in points with the origin at the top
+                            // left and y running down. Only a scale and a shift of the clip's top-left
+                            // corner to the bitmap origin are needed, with no flip of our own.
                             var scaleX = width / clip.Clip.Width;
                             var scaleY = height / clip.Clip.Height;
                             var matrix = new FsMatrix
                             {
                                 A = (float) scaleX,
-                                D = (float) -scaleY,
+                                D = (float) scaleY,
                                 E = (float) (-clip.Clip.Left * scaleX),
-                                F = (float) (clip.Clip.Top * scaleY)
+                                F = (float) (-(size.Height - clip.Clip.Top) * scaleY)
                             };
                             var clipping = new FsRectF { Left = 0, Top = 0, Right = width, Bottom = height };
                             PdfiumNative.FPDF_RenderPageBitmapWithMatrix(bitmap, page, in matrix, in clipping, flags);

@@ -91,6 +91,24 @@ public sealed partial class PdfPage :
         return textHandle;
     }
 
+    // Caller must hold PdfiumNative.Sync. Closes the text and web-link handles if loaded.
+    // Both are a snapshot of the page's text as it was when they were loaded, so an edit
+    // that changes the text calls this and the next text query loads them afresh.
+    void CloseText()
+    {
+        if (webLinkHandle != IntPtr.Zero)
+        {
+            PdfiumNative.FPDFLink_CloseWebLinks(webLinkHandle);
+            webLinkHandle = IntPtr.Zero;
+        }
+
+        if (textHandle != IntPtr.Zero)
+        {
+            PdfiumNative.FPDFText_ClosePage(textHandle);
+            textHandle = IntPtr.Zero;
+        }
+    }
+
     public void Dispose()
     {
         // Checked and cleared under the lock so a call on another thread either completes
@@ -110,18 +128,7 @@ public sealed partial class PdfPage :
                 contentPending = false;
             }
 
-            if (webLinkHandle != IntPtr.Zero)
-            {
-                PdfiumNative.FPDFLink_CloseWebLinks(webLinkHandle);
-                webLinkHandle = IntPtr.Zero;
-            }
-
-            if (textHandle != IntPtr.Zero)
-            {
-                PdfiumNative.FPDFText_ClosePage(textHandle);
-                textHandle = IntPtr.Zero;
-            }
-
+            CloseText();
             PdfiumNative.FPDF_ClosePage(handle);
             document.Untrack(this);
             handle = IntPtr.Zero;

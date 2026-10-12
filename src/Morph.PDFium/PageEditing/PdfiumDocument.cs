@@ -4,7 +4,7 @@ public sealed partial class PdfiumDocument
 {
     /// <summary>
     /// Creates an empty in-memory document with no pages. Use <see cref="NewPage"/> to add
-    /// pages or <see cref="ImportPages(PdfiumDocument,string?,int)"/> to copy them in, then
+    /// pages or <see cref="ImportPages(PdfiumDocument,string?,int?)"/> to copy them in, then
     /// <see cref="Save(SaveFlags,int?)"/> to serialise the result.
     /// </summary>
     public static PdfiumDocument CreateNew()
@@ -69,11 +69,12 @@ public sealed partial class PdfiumDocument
     }
 
     /// <summary>
-    /// Imports pages from <paramref name="source"/> into this document at <paramref name="index"/>.
+    /// Imports pages from <paramref name="source"/> into this document, inserting them before
+    /// the page at <paramref name="index"/>, or appending them when it is null.
     /// <paramref name="pageRange"/> is a 1-based range string such as "1,3,5-7"; pass null to
     /// import every page.
     /// </summary>
-    public void ImportPages(PdfiumDocument source, string? pageRange = null, int index = 0)
+    public void ImportPages(PdfiumDocument source, string? pageRange = null, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         var range = pageRange is null ? default : Encoding.ASCII.GetBytes(pageRange + '\0');
@@ -82,22 +83,23 @@ public sealed partial class PdfiumDocument
             var doc = Handle;
             var src = source.Handle;
             source.GeneratePendingContent();
-            if (!PdfiumNative.FPDF_ImportPages(doc, src, range, index))
+            if (!PdfiumNative.FPDF_ImportPages(doc, src, range, index ?? pageCount))
             {
                 throw new PdfiumException("Failed to import pages (invalid page range?)");
             }
 
             var before = pageCount;
             RefreshPageCount();
-            ShiftOpenPages(index, pageCount - before);
+            ShiftOpenPages(index ?? before, pageCount - before);
         }
     }
 
     /// <summary>
     /// Imports the pages at the given zero-based <paramref name="pageIndices"/> from
-    /// <paramref name="source"/> into this document at <paramref name="index"/>.
+    /// <paramref name="source"/> into this document, inserting them before the page at
+    /// <paramref name="index"/>, or appending them when it is null.
     /// </summary>
-    public void ImportPages(PdfiumDocument source, ReadOnlySpan<int> pageIndices, int index = 0)
+    public void ImportPages(PdfiumDocument source, ReadOnlySpan<int> pageIndices, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         lock (PdfiumNative.Sync)
@@ -105,14 +107,14 @@ public sealed partial class PdfiumDocument
             var doc = Handle;
             var src = source.Handle;
             source.GeneratePendingContent();
-            if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index))
+            if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index ?? pageCount))
             {
                 throw new PdfiumException("Failed to import pages (invalid indices?)");
             }
 
             var before = pageCount;
             RefreshPageCount();
-            ShiftOpenPages(index, pageCount - before);
+            ShiftOpenPages(index ?? before, pageCount - before);
         }
     }
 

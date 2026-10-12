@@ -99,6 +99,14 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    public async Task LoadNullThrows()
+    {
+        await Assert.That(() => PdfiumDocument.Load((byte[]) null!)).Throws<ArgumentNullException>();
+        await Assert.That(() => PdfiumDocument.Load((Stream) null!)).Throws<ArgumentNullException>();
+        await Assert.That(() => PdfiumDocument.Load((string) null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public async Task InvalidPdfThrows()
     {
         var exception = await Assert.That(() => PdfiumDocument.Load("not a pdf"u8.ToArray()))
@@ -125,6 +133,39 @@ public class PdfiumDocumentTests
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         await Assert.That(() => document.RenderPage(0, dpi)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    [Arguments(double.NaN)]
+    [Arguments(double.PositiveInfinity)]
+    [Arguments(double.NegativeInfinity)]
+    [Arguments(0)]
+    public async Task NonFiniteOrNonPositiveDpiThrows(double dpi)
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var options = new RenderOptions
+        {
+            Dpi = dpi
+        };
+        await Assert.That(() => document.RenderPage(0, dpi)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderPage(0, options)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderRegion(0, new(0, 0, 100, 100), options)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    public async Task NonFiniteClipThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.RenderRegion(0, new(double.NaN, 0, 100, 100))).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderRegion(0, new(0, 0, double.PositiveInfinity, 100))).Throws<ArgumentOutOfRangeException>();
+    }
+
+    // Large enough that both dimensions saturate, which wrapped the old 64 bit byte count.
+    [Test]
+    public async Task SaturatedRenderSizeThrows()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.RenderPage(0, 1e300)).Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
@@ -180,7 +221,7 @@ public class PdfiumDocumentTests
         var page = document.LoadPage(0);
         document.Dispose();
 
-        await Assert.That(() => page.GetText()).Throws<ObjectDisposedException>();
+        await Assert.That(page.GetText).Throws<ObjectDisposedException>();
         await Assert.That(() => form.SetHighlight(new(255, 255, 0, 100))).Throws<ObjectDisposedException>();
         // Already closed by the document, so these must not reach PDFium again.
         page.Dispose();
