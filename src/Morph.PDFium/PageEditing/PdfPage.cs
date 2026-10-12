@@ -52,6 +52,9 @@ public sealed partial class PdfPage
     /// <summary>
     /// Flattens annotations and form fields into the page content stream. Returns false when
     /// there was nothing to flatten. Persist the result with <see cref="PdfiumDocument.Save(SaveFlags,int?)"/>.
+    /// Every annotation is removed from the page in the process. Those with an appearance are
+    /// drawn into the content first; those without one, link annotations included, are simply
+    /// dropped, so the page's links stop working.
     /// </summary>
     public bool Flatten(bool forPrinting = false)
     {
