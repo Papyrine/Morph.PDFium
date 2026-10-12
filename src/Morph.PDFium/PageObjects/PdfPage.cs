@@ -67,6 +67,7 @@ public sealed partial class PdfPage
             PdfiumNative.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
             PdfiumNative.FPDFPage_InsertObject(page, obj);
             contentPending = true;
+            CloseText();
         }
     }
 
