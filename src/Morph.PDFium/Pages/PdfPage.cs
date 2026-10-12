@@ -28,8 +28,12 @@ public sealed partial class PdfPage :
         document.Track(this);
     }
 
-    /// <summary>The zero-based index of this page within its document.</summary>
-    public int Index { get; }
+    /// <summary>
+    /// The zero-based index of this page within its document. It follows the page when other
+    /// pages are inserted or deleted ahead of it, and is -1 once this page itself has been
+    /// deleted from the document.
+    /// </summary>
+    public int Index { get; internal set; }
 
     /// <summary>Page dimensions in points, accounting for the page's rotation.</summary>
     public PageSize Size
