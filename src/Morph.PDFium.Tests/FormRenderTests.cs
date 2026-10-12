@@ -72,6 +72,20 @@ public class FormRenderTests
         await Assert.That(height).IsEqualTo(528);
     }
 
+    // sample.pdf has a single line of text near the top of the page and nothing below it.
+    // The region snapshot is compared by SSIM, which a mostly white image passes even when
+    // the text is missing, so check directly that the text lands in the right half.
+    [Test]
+    public async Task RenderRegionShowsTheRequestedArea()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var topHalf = document.RenderRegion(0, new(0, 396, 612, 792));
+        var bottomHalf = document.RenderRegion(0, new(0, 0, 612, 396));
+
+        // A blank region deflates to almost nothing, so content shows up as extra bytes.
+        await Assert.That(topHalf.Length).IsGreaterThan(bottomHalf.Length * 2);
+    }
+
     static (int width, int height) ReadPngSize(byte[] png)
     {
         var width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16));
