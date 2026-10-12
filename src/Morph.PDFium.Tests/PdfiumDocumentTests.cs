@@ -27,6 +27,17 @@ public class PdfiumDocumentTests
     }
 
     [Test]
+    [Arguments(0)]
+    [Arguments(10)]
+    public async Task LoadFromStreamWithNothingLeftThrows(int pastEnd)
+    {
+        var pdf = await File.ReadAllBytesAsync(ProjectFiles.sample_pdf);
+        using var stream = new MemoryStream(pdf);
+        stream.Position = pdf.Length + pastEnd;
+        await Assert.That(() => PdfiumDocument.Load(stream)).Throws<PdfiumException>();
+    }
+
+    [Test]
     public async Task LoadFromNonSeekableStream()
     {
         await using var stream = new NonSeekableStream(await File.ReadAllBytesAsync(ProjectFiles.sample_pdf));

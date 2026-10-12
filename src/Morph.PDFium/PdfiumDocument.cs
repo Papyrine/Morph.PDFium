@@ -35,7 +35,9 @@ public sealed partial class PdfiumDocument :
         // exactly that size instead of growing a buffer and then copying out of it.
         if (stream.CanSeek)
         {
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) (stream.Length - stream.Position)));
+            // A position beyond the end leaves nothing to read, the same as being at the end.
+            var remaining = Math.Max(0, stream.Length - stream.Position);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int) remaining));
             stream.ReadExactly(bytes);
             return Load(bytes, password);
         }
