@@ -191,7 +191,7 @@ public class EditTests
         document.DeleteAttachment(0);
 
         await Assert.That(() => deleted.Name).Throws<InvalidOperationException>();
-        await Assert.That(() => deleted.GetData()).Throws<InvalidOperationException>();
+        await Assert.That(deleted.GetData).Throws<InvalidOperationException>();
         await Assert.That(() => deleted.SetData([9])).Throws<InvalidOperationException>();
         await Assert.That(kept.Name).IsEqualTo("b.bin");
         await Assert.That(document.GetAttachments().Single().Name).IsEqualTo("b.bin");

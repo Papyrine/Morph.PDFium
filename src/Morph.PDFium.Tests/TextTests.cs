@@ -102,7 +102,7 @@ public class TextTests
         await Assert.That(links[4].Action!.Value.Uri).IsEqualTo("https://example.com/a?b=c");
         await Assert.That(links[5].Action!.Value.Type).IsEqualTo(PdfActionType.Launch);
         await Assert.That(links[5].Action!.Value.FilePath).IsEqualTo("tool.exe");
-        await Assert.That(links[0].Rectangle).IsEqualTo(new PdfRectangle(72, 700, 300, 720));
+        await Assert.That(links[0].Rectangle).IsEqualTo(new(72, 700, 300, 720));
     }
 
     [Test]
