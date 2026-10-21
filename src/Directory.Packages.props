@@ -4,6 +4,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="bblanchon.PDFium.Linux" Version="158.0.8111" />
     <PackageVersion Include="bblanchon.PDFium.macOS" Version="158.0.8111" />
     <PackageVersion Include="bblanchon.PDFium.Win32" Version="158.0.8111" />

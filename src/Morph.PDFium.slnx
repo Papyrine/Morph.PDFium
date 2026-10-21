@@ -9,5 +9,6 @@
     <File Path="mdsnippets.json" />
   </Folder>
   <Project Path="Morph.PDFium/Morph.PDFium.csproj" />
+  <Project Path="Morph.PDFium.Benchmarks/Morph.PDFium.Benchmarks.csproj" />
   <Project Path="Morph.PDFium.Tests/Morph.PDFium.Tests.csproj" />
 </Solution>

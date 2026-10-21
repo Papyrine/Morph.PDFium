@@ -22,7 +22,12 @@ dotnet run --project src/Morph.PDFium.Tests --configuration Release -- --treenod
 
 # Single test
 dotnet run --project src/Morph.PDFium.Tests --configuration Release -- --treenode-filter "/*/*/PdfiumDocumentTests/PageCount"
+
+# Benchmarks (BenchmarkDotNet); renders multi-page.pdf unless MORPH_PDFIUM_BENCHMARK_PDF names another file
+dotnet run --project src/Morph.PDFium.Benchmarks --configuration Release -- --filter "*"
 ```
+
+`Morph.PDFium.Benchmarks` has `InternalsVisibleTo` (with the key.snk public key) so it can time `RenderPixels` and `PngEncoder` apart from the public API.
 
 ## Architecture
 
@@ -36,7 +41,7 @@ The native bindings and the public API are each split into per-feature partial f
 - **PdfPage.cs** + **PdfPage.\*.cs** (`.Text`, `.Links`, `.Annotations`, `.Edit`, `.Objects`) — a disposable page handle wrapping `FPDF_LoadPage`. Text and web-link sub-handles are loaded lazily and closed on dispose.
 - **PdfForm.cs** — disposable `FPDF_FORMHANDLE` session. The `FPDF_FORMFILLINFO` struct (one `version` int + 32 callback slots, all null for headless use) must stay pinned for the handle's lifetime, since PDFium retains the pointer.
 - **Save** uses a `FPDF_FILEWRITE` whose `WriteBlock` is an `[UnmanagedCallersOnly]` cdecl function pointer; the destination `Stream` is recovered via a GCHandle stored in a trailing struct slot.
-- **PngEncoder.cs** — dependency-free PNG writer: RGBA, Up filter, `ZLibStream` (Optimal), `pHYs` chunk for dpi. Deflate output is technically allowed to change between .NET runtime versions; if a runtime upgrade shifts snapshot bytes, regenerate verified files.
+- **PngEncoder.cs** — dependency-free PNG writer: 8-bit grayscale when every pixel is opaque gray (the common text-on-white page; a quarter of the data to deflate), otherwise RGBA; Up filter, `ZLibStream` (Optimal), `pHYs` chunk for dpi. Encoding, not PDFium, dominates conversion time, which is also why `RenderPages` renders pages in parallel: rendering is serialized on `Sync` but encoding overlaps it. Deflate output is technically allowed to change between .NET runtime versions; if a runtime upgrade shifts snapshot bytes, regenerate verified files.
 
 Style note: only public types get a namespace declaration (`Morph.PDFium`); internal types (`PdfiumNative`, `Interop`, the `Fs*` structs, `Navigation`) live in the global namespace.
 
