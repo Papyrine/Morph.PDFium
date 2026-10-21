@@ -185,7 +185,47 @@ public class PdfiumDocumentTests
         await Assert.That(() => document.RenderPage(0, dpi)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPage(0, options)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderRegion(0, new(0, 0, 100, 100), options)).Throws<ArgumentOutOfRangeException>();
+        // RenderPages renders in parallel, but must still surface the error itself rather
+        // than an AggregateException.
+        await Assert.That(() => document.RenderPages(dpi)).Throws<ArgumentOutOfRangeException>();
     }
+
+    [Test]
+    public async Task RenderPagesMatchesRenderPage()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        var pages = document.RenderPages();
+        await Assert.That(pages.Count).IsEqualTo(document.PageCount);
+        for (var index = 0; index < pages.Count; index++)
+        {
+            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index));
+        }
+    }
+
+    // Text on a white page is all gray, so it is written as a one channel image. A colored or
+    // transparent background needs the full RGBA image.
+    [Test]
+    public async Task GrayPageEncodesAsGrayscale()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(ReadColorType(document.RenderPage(0))).IsEqualTo((byte) 0);
+
+        var colored = new RenderOptions
+        {
+            Background = new(255, 0, 0, 255)
+        };
+        await Assert.That(ReadColorType(document.RenderPage(0, colored))).IsEqualTo((byte) 6);
+
+        var transparent = new RenderOptions
+        {
+            Background = new(255, 255, 255, 0)
+        };
+        await Assert.That(ReadColorType(document.RenderPage(0, transparent))).IsEqualTo((byte) 6);
+    }
+
+    // The color type is the tenth byte of the IHDR data, which starts at offset 16.
+    static byte ReadColorType(byte[] png) =>
+        png[25];
 
     [Test]
     public async Task NonFiniteClipThrows()

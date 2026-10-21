@@ -212,13 +212,27 @@ public sealed partial class PdfiumDocument :
     public List<byte[]> RenderPages(double dpi = 96)
     {
         ThrowIfDisposed();
-        var pages = new List<byte[]>(pageCount);
-        for (var index = 0; index < pageCount; index++)
+        var pages = new byte[pageCount][];
+        // PDFium renders one page at a time under the lock, but RenderPage encodes the PNG
+        // outside it, so pages rendered in parallel overlap encoding with rendering, and with
+        // each other. Each worker holds at most one page's pixels, so the degree of
+        // parallelism also bounds the memory in use.
+        var options = new ParallelOptions
         {
-            pages.Add(RenderPage(index, dpi));
+            MaxDegreeOfParallelism = Environment.ProcessorCount
+        };
+        try
+        {
+            Parallel.For(0, pages.Length, options, index => pages[index] = RenderPage(index, dpi));
+        }
+        catch (AggregateException exception)
+        {
+            // Surface what RenderPage threw, as the sequential loop this replaced did.
+            ExceptionDispatchInfo.Capture(exception.InnerExceptions[0]).Throw();
+            throw;
         }
 
-        return pages;
+        return [.. pages];
     }
 
     // Byte-order agnostic: every channel is 0xFF.
