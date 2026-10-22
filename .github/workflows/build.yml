@@ -24,6 +24,7 @@ jobs:
   # Tests on every OS the package ships PDFium for. Windows alone packs, and its packages are the
   # ones published.
   build:
+    name: build (${{ matrix.os }})
     strategy:
       # One platform failing doesn't cancel the others, so every run reports all three.
       fail-fast: false
