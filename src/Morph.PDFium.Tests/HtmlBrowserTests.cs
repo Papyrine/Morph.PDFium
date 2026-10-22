@@ -38,7 +38,7 @@ public class HtmlBrowserTests
     // the NASA fact sheet is a third photo, and the IRS form is as much ruled lines, boxes and
     // shading as text, all of which text-only HTML leaves out.
     public static IEnumerable<string> TextPages() =>
-        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked", "nasa 2"];
+        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked", "hebrew", "mirrored", "nasa 2"];
 
     static (PdfiumDocument Document, int Page) Load(string name) =>
         name switch
@@ -50,6 +50,8 @@ public class HtmlBrowserTests
             "rotated" => (PdfiumDocument.Load(HtmlTests.RotatedPdf()), 0),
             "scaled" => (PdfiumDocument.Load(HtmlTests.ScaledTextPdf()), 0),
             "stroked" => (PdfiumDocument.Load(HtmlTests.StrokedTextPdf()), 0),
+            "hebrew" => (PdfiumDocument.Load(HtmlTests.HebrewPdf("BT /F1 20 Tf 72 700 Td (abcd abcd dcba.) Tj ET")), 0),
+            "mirrored" => (PdfiumDocument.Load(HtmlTests.SinglePage("BT /F1 24 Tf -1 0 0 1 300 700 Tm (Mirrored text) Tj ET BT /F1 24 Tf 1 0 0 -1 72 600 Tm (Upside down) Tj ET")), 0),
             "irs 1" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 0),
             "irs 2" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 1),
             "nasa 1" => (PdfiumDocument.Load(ProjectFiles.nasa_training_for_space_pdf), 0),

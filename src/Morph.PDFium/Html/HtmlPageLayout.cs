@@ -9,10 +9,12 @@ sealed record HtmlPageLayout(int Index, double Width, double Height, IReadOnlyLi
 
 /// <summary>
 /// A stretch of text drawn along one baseline in one font, size and style. (X, Y) is where the
-/// baseline starts, Angle the clockwise rotation in degrees and Length how far the text reaches
-/// along the baseline, which the browser stretches its own glyphs to fill.
+/// text starts, Angle the clockwise rotation in degrees and Length how far the text reaches
+/// along the baseline, which the browser stretches its own glyphs to fill. RightToLeft text
+/// starts at (X, Y) and reads leftwards; Mirrored text's glyphs are flipped across its
+/// baseline, as a character matrix with a negative determinant draws them.
 /// </summary>
-sealed record HtmlTextRun(string Text, double X, double Y, double Angle, double FontSize, double Length, HtmlTextStyle Style);
+sealed record HtmlTextRun(string Text, double X, double Y, double Angle, double FontSize, double Length, HtmlTextStyle Style, bool RightToLeft, bool Mirrored);
 
 /// <summary>
 /// The look of visible text. Family is the PDF font's family name, when it has one; Generic is

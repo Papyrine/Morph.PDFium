@@ -250,7 +250,9 @@ public sealed partial class PdfPage
             // A combining mark or a zero-width character takes no room of its own. PDFium's loose
             // box cannot say so: for a glyph with no advance it falls back to the inked part.
             var advance = TakesNoAdvance((int) unicode) ? 0 : Advance(box, a, b, c, d, fontSize);
-            builder.Add((int) unicode, x, y, advance, fontSize, a / length, b / length, style);
+            // A negative determinant flips the glyphs: mirrored text, or text drawn upside down
+            // and back to front.
+            builder.Add((int) unicode, x, y, advance, fontSize, a / length, b / length, a * d - b * c < 0, style);
             highSurrogateAdded = unicode is >= 0xD800 and <= 0xDBFF;
         }
 

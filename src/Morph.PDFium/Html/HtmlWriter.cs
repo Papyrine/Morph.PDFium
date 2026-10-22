@@ -125,10 +125,34 @@ static class HtmlWriter
             builder.Append($" textLength=\"{Number(run.Length)}\" lengthAdjust=\"spacingAndGlyphs\"");
         }
 
-        var angle = Number(run.Angle);
-        if (angle != "0")
+        if (run.RightToLeft)
         {
-            builder.Append($" transform=\"rotate({angle} {x} {y})\"");
+            // Started at its right-hand end: so laid out, the browser also places neutral
+            // characters, such as a full stop, where right-to-left text has them.
+            builder.Append(" direction=\"rtl\"");
+        }
+
+        var angle = Number(run.Angle);
+        if (angle != "0" || run.Mirrored)
+        {
+            builder.Append(" transform=\"");
+            if (angle != "0")
+            {
+                builder.Append($"rotate({angle} {x} {y})");
+            }
+
+            if (run.Mirrored)
+            {
+                if (angle != "0")
+                {
+                    builder.Append(' ');
+                }
+
+                // Flipped across the baseline about the run's start, before it is turned.
+                builder.Append($"translate({x} {y}) scale(1 -1) translate({Number(-run.X)} {Number(-run.Y)})");
+            }
+
+            builder.Append('"');
         }
 
         var style = run.Style;

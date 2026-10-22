@@ -192,7 +192,7 @@ public class HtmlTests
 
     // A one page PDF of the given content stream, with Helvetica as /F1 and a form XObject
     // /Fm1 that draws the given form content.
-    static byte[] SinglePage(string content, string formContent = "") =>
+    internal static byte[] SinglePage(string content, string formContent = "") =>
         CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R >>",
@@ -1209,6 +1209,97 @@ public class HtmlTests
         using var document = PdfiumDocument.Load(pdf);
         var html = document.RenderPageHtml(0, textOnly);
         await Assert.That(html).Contains("<text x=\"72\" y=\"2999300\"");
+    }
+
+    // A font whose ToUnicode map reads a, b, c and d as the Hebrew letters alef, bet, gimel
+    // and dalet, so "abcd" drawn left to right is Hebrew, which PDFium gives in reading order:
+    // from its right-hand end.
+    internal static byte[] HebrewPdf(string content) =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(content),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(
+                """
+                /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+                /CMapName /Hebrew def /CMapType 2 def
+                1 begincodespacerange <00> <FF> endcodespacerange
+                1 beginbfrange <20> <60> <0020> endbfrange
+                4 beginbfchar <61> <05D0> <62> <05D1> <63> <05D2> <64> <05D3> endbfchar
+                endcmap CMapName currentdict /CMap defineresource pop end end
+                """)
+        });
+
+    // Right-to-left text stays one run, in reading order, written right to left from where it
+    // starts: its right-hand end.
+    [Test]
+    public async Task RightToLeftTextIsOneRun()
+    {
+        using var document = PdfiumDocument.Load(HebrewPdf("BT /F1 20 Tf 72 700 Td (abcd abcd) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+        await Assert.That(html).Contains("direction=\"rtl\"");
+        await Assert.That(html).Contains(">דגבא דגבא</text>");
+    }
+
+    // A nested list item: the indents after "1." and after "a)" each end a run, so neither is
+    // spread over the rest of the line.
+    [Test]
+    public async Task NestedIndentsAreSeparateRuns()
+    {
+        var pdf = SinglePage("BT /F1 12 Tf 1 0 0 1 72 700 Tm (1.) Tj 1 0 0 1 96 700 Tm (a\\)) Tj 1 0 0 1 120 700 Tm (Nested item text here) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("<text x=\"72\" y=\"92\" font-size=\"12\" textLength=\"10.01\" lengthAdjust=\"spacingAndGlyphs\" font-family=\"'Helvetica', sans-serif\">1.</text>");
+        await Assert.That(html).Contains("<text x=\"96\" y=\"92\"");
+        await Assert.That(html).Contains(">a)</text>");
+        await Assert.That(html).Contains("<text x=\"120\" y=\"92\"");
+        await Assert.That(html).Contains(">Nested item text here</text>");
+    }
+
+    // Text whose matrix flips its glyphs is drawn flipped: mirrored left to right, and
+    // upside down.
+    [Test]
+    public async Task MirroredText()
+    {
+        var pdf = SinglePage("BT /F1 20 Tf -1 0 0 1 300 700 Tm (Mirror) Tj ET BT /F1 20 Tf 1 0 0 -1 72 600 Tm (Flipped) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("transform=\"rotate(-180 300 92) translate(300 92) scale(1 -1) translate(-300 -92)\"");
+        await Assert.That(html).Contains("transform=\"translate(72 192) scale(1 -1) translate(-72 -192)\"");
+    }
+
+    // A monospaced font's space is exactly 0.6 em, and a double space exactly twice a single
+    // one, right on the thresholds for a wide space; rounding must not split such lines.
+    [Test]
+    [Arguments(7)]
+    [Arguments(9)]
+    [Arguments(10)]
+    [Arguments(10.5)]
+    [Arguments(12)]
+    [Arguments(13.3)]
+    [Arguments(14)]
+    [Arguments(16)]
+    [Arguments(17)]
+    public async Task SpacesOnTheThresholdsKeepOneRun(double size)
+    {
+        var sizeText = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
+            [4] = CraftedPdf.Stream($"BT /F2 {sizeText} Tf 72 700 Td (Hello world) Tj ET BT /F1 {sizeText} Tf 72 600 Td (End.  Next words here) Tj ET"),
+            [5] = CraftedPdf.Helvetica,
+            [6] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains(">Hello world</text>");
+        await Assert.That(html).Contains(">End. Next words here</text>");
     }
 
     [Test]
