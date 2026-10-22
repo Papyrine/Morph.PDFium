@@ -16,10 +16,11 @@ sealed record HtmlTextRun(string Text, double X, double Y, double Angle, double 
 
 /// <summary>
 /// The look of visible text. Family is the PDF font's family name, when it has one; Generic is
-/// the CSS generic family to fall back to. The default value stands for overlay text, which has
-/// no look of its own.
+/// the CSS generic family to fall back to. Fill is null for text drawn only as an outline, and
+/// Stroke null for text not outlined. The default value stands for overlay text, which has no
+/// look of its own.
 /// </summary>
-readonly record struct HtmlTextStyle(string? Family, string? Generic, int Weight, bool Italic, PdfColor Fill);
+readonly record struct HtmlTextStyle(string? Family, string? Generic, int Weight, bool Italic, PdfColor? Fill, PdfColor? Stroke, double StrokeWidth);
 
 sealed record HtmlLink(string Href, IReadOnlyList<HtmlRect> Rectangles);
 

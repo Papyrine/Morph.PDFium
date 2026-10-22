@@ -24,6 +24,10 @@ static partial class PdfiumNative
 
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObj_GetStrokeWidth(IntPtr pageObject, out float width);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool FPDFPageObj_SetStrokeColor(IntPtr pageObject, uint r, uint g, uint b, uint a);
 
     [LibraryImport(library)]

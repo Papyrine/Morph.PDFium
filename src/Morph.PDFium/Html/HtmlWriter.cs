@@ -117,15 +117,32 @@ static class HtmlWriter
                 builder.Append(" font-style=\"italic\"");
             }
 
-            var fill = style.Fill;
-            if (fill.R != 0 || fill.G != 0 || fill.B != 0)
+            if (style.Fill is { } fill)
             {
-                builder.Append($" fill=\"#{fill.R:x2}{fill.G:x2}{fill.B:x2}\"");
+                if (fill.R != 0 || fill.G != 0 || fill.B != 0)
+                {
+                    builder.Append($" fill=\"#{fill.R:x2}{fill.G:x2}{fill.B:x2}\"");
+                }
+
+                if (fill.A != 255)
+                {
+                    builder.Append($" fill-opacity=\"{Number(fill.A / 255d)}\"");
+                }
+            }
+            else
+            {
+                builder.Append(" fill=\"none\"");
             }
 
-            if (fill.A != 255)
+            if (style.Stroke is { } stroke)
             {
-                builder.Append($" fill-opacity=\"{Number(fill.A / 255d)}\"");
+                // A width of 0 is the thinnest line the device can draw: about a pixel.
+                var width = style.StrokeWidth > 0 ? style.StrokeWidth : 0.75;
+                builder.Append($" stroke=\"#{stroke.R:x2}{stroke.G:x2}{stroke.B:x2}\" stroke-width=\"{Number(width)}\"");
+                if (stroke.A != 255)
+                {
+                    builder.Append($" stroke-opacity=\"{Number(stroke.A / 255d)}\"");
+                }
             }
         }
 

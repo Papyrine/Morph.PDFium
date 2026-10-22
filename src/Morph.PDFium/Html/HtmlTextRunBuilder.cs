@@ -17,12 +17,15 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
     bool pendingSpace;
     double originX;
     double originY;
+    // The unit vector along the run's baseline.
     double directionX;
     double directionY;
-    double angle;
     double fontSize;
     // How far the run reaches along its baseline from its origin.
     double extent;
+    // The origin of the run's latest character.
+    double lastX;
+    double lastY;
     HtmlTextStyle style;
 
     public List<HtmlTextRun> Runs { get; } = [];
@@ -49,12 +52,12 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
     }
 
     /// <summary>
-    /// A drawn character: its code point, baseline origin, bounding box (zero when unknown),
-    /// font size, angle in radians and style, all in page coordinates.
+    /// A drawn character: its code point, baseline origin, advance along the baseline, font
+    /// size, the unit vector along its baseline and its style, all in page coordinates.
     /// </summary>
-    public void Add(int codePoint, double x, double y, PdfRectangle box, double size, double radians, HtmlTextStyle charStyle)
+    public void Add(int codePoint, double x, double y, double advance, double size, double baselineX, double baselineY, HtmlTextStyle charStyle)
     {
-        if (active && !Continues(x, y, size, radians, charStyle))
+        if (active && !Continues(x, y, size, baselineX, baselineY, charStyle))
         {
             Flush();
         }
@@ -71,10 +74,8 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
             active = true;
             originX = x;
             originY = y;
-            angle = radians;
-            // PDFium measures the angle clockwise, though page y runs up.
-            directionX = Math.Cos(radians);
-            directionY = -Math.Sin(radians);
+            directionX = baselineX;
+            directionY = baselineY;
             fontSize = size;
             style = charStyle;
             extent = 0;
@@ -91,16 +92,30 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
             text.Append((char) codePoint);
         }
 
-        extent = Math.Max(extent, Reach(x, y, box, size));
+        // How far along the baseline, from the run's origin, the character reaches.
+        extent = Math.Max(extent, Along(x, y) + advance);
+        lastX = x;
+        lastY = y;
     }
 
-    bool Continues(double x, double y, double size, double radians, HtmlTextStyle charStyle)
+    bool Continues(double x, double y, double size, double baselineX, double baselineY, HtmlTextStyle charStyle)
     {
+        // A baseline turned more than about half a degree from the run's, or reversed, starts
+        // another run.
         if (charStyle != style ||
             Math.Abs(size - fontSize) > fontSize * 0.01 ||
-            Math.Abs(radians - angle) > 0.01)
+            Math.Abs(baselineX * directionY - baselineY * directionX) > 0.01 ||
+            baselineX * directionX + baselineY * directionY < 0)
         {
             return false;
+        }
+
+        // The letters of a ligature, such as the f, f and i of "ﬃ", share one glyph and so one
+        // origin. Measured against the glyph's whole width, the later letters would seem to
+        // jump back.
+        if (!pendingSpace && Math.Abs(x - lastX) < 0.01 && Math.Abs(y - lastY) < 0.01)
+        {
+            return true;
         }
 
         var dx = x - originX;
@@ -115,20 +130,6 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
         var gap = dx * directionX + dy * directionY - extent;
         var widest = pendingSpace ? 1.5 : 0.8;
         return gap >= -fontSize * 0.5 && gap <= fontSize * widest;
-    }
-
-    // How far along the baseline, from the run's origin, the character reaches: the furthest
-    // corner of its box, or half an em past its origin when it has no box.
-    double Reach(double x, double y, PdfRectangle box, double size)
-    {
-        if (box.Width <= 0 || box.Height <= 0)
-        {
-            return Along(x, y) + size * 0.5;
-        }
-
-        return Math.Max(
-            Math.Max(Along(box.Left, box.Bottom), Along(box.Right, box.Bottom)),
-            Math.Max(Along(box.Left, box.Top), Along(box.Right, box.Top)));
     }
 
     double Along(double x, double y) =>

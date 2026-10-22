@@ -32,7 +32,7 @@ public class HtmlBrowserTests
     }
 
     public static IEnumerable<string> Pages() =>
-        ["sample", "multi-page 1", "multi-page 4", "links", "rotated"];
+        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked"];
 
     static (PdfiumDocument Document, int Page) Load(string name) =>
         name switch
@@ -42,6 +42,8 @@ public class HtmlBrowserTests
             "multi-page 4" => (PdfiumDocument.Load(ProjectFiles.multi_page_pdf), 3),
             "links" => (PdfiumDocument.Load(HtmlTests.PdfWithLinks()), 0),
             "rotated" => (PdfiumDocument.Load(HtmlTests.RotatedPdf()), 0),
+            "scaled" => (PdfiumDocument.Load(HtmlTests.ScaledTextPdf()), 0),
+            "stroked" => (PdfiumDocument.Load(HtmlTests.StrokedTextPdf()), 0),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
         };
 
@@ -124,6 +126,69 @@ public class HtmlBrowserTests
         await Assert.That(comparison.InkCorrelation).IsLessThan(0.6);
     }
 
+    // A folder of PDFs, such as another converter's test files, to run through the browser
+    // comparison without committing them. Off unless the variable is set.
+    const string corpusVariable = "MORPH_PDFIUM_HTML_CORPUS";
+    // Where the corpus test writes each page's PNG and HTML for a look, when set.
+    const string corpusOutputVariable = "MORPH_PDFIUM_HTML_CORPUS_OUTPUT";
+
+    public static IEnumerable<string> CorpusFiles()
+    {
+        var folder = Environment.GetEnvironmentVariable(corpusVariable);
+        if (string.IsNullOrEmpty(folder))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(folder, "*.pdf", SearchOption.AllDirectories).Order();
+    }
+
+    // Every page of every PDF in the corpus folder. The overlay must match PDFium's render, as
+    // it does for the files above. Visible text is only reported, not checked: a page's images
+    // and drawings are missing from text-only HTML, so how well it correlates depends on how
+    // much of the page they make up.
+    [Test]
+    [MethodDataSource(nameof(CorpusFiles), SkipIfEmpty = true)]
+    public async Task Corpus(string path)
+    {
+        using var document = PdfiumDocument.Load(path);
+        var output = Environment.GetEnvironmentVariable(corpusOutputVariable);
+        var failures = new List<string>();
+        for (var index = 0; index < document.PageCount; index++)
+        {
+            var render = document.RenderPage(index);
+            var overlayHtml = document.RenderPageHtml(index);
+            var visibleHtml = document.RenderPageHtml(
+                index,
+                new()
+                {
+                    IncludeImage = false,
+                    Text = HtmlTextMode.Visible
+                });
+            var overlay = await Compare(await Screenshot(overlayHtml, 1), render);
+            var visible = await Compare(await Screenshot(visibleHtml, 1), render);
+            Console.WriteLine($"Page {index + 1}: overlay {overlay}; visible text ink correlation {visible.InkCorrelation:0.####}");
+            if (!overlay.SameSize || overlay.DifferingFraction >= 0.001)
+            {
+                failures.Add($"page {index + 1}: {overlay}");
+            }
+
+            if (!string.IsNullOrEmpty(output))
+            {
+                var name = $"{Path.GetFileNameWithoutExtension(path)}-{index + 1}";
+                Directory.CreateDirectory(output);
+                await File.WriteAllBytesAsync(Path.Combine(output, $"{name}.png"), render);
+                await File.WriteAllTextAsync(Path.Combine(output, $"{name}-overlay.html"), Wrap(overlayHtml));
+                await File.WriteAllTextAsync(Path.Combine(output, $"{name}-visible.html"), Wrap(visibleHtml));
+            }
+        }
+
+        await Assert.That(failures).IsEmpty();
+    }
+
+    static string Wrap(string fragment) =>
+        $"<!DOCTYPE html><html><body style=\"margin:0\">{fragment}</body></html>";
+
     static async Task<byte[]> Screenshot(string fragment, float deviceScale)
     {
         await using var context = await browser.NewContextAsync(
@@ -137,7 +202,7 @@ public class HtmlBrowserTests
                 DeviceScaleFactor = deviceScale
             });
         var page = await context.NewPageAsync();
-        await page.SetContentAsync($"<!DOCTYPE html><html><body style=\"margin:0\">{fragment}</body></html>");
+        await page.SetContentAsync(Wrap(fragment));
         await page.EvaluateAsync("document.fonts.ready");
         return await page.Locator(".pdf-page").ScreenshotAsync();
     }

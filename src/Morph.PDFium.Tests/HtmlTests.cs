@@ -325,6 +325,130 @@ public class HtmlTests
         await Assert.That(overlay).DoesNotContain("fill=\"#ff0000\"");
     }
 
+    // Text set at size 1 and scaled up by its text matrix, as cairo writes it, and text whose
+    // size is doubled by the page's transformation.
+    internal static byte[] ScaledTextPdf() =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(
+                """
+                BT /F1 1 Tf 24 0 0 24 72 700 Tm (Scaled by the matrix) Tj ET
+                q 2 0 0 2 0 0 cm BT /F1 10 Tf 36 300 Td (Doubled by the page) Tj ET Q
+                """),
+            [5] = CraftedPdf.Helvetica
+        });
+
+    [Test]
+    public async Task FontSizeIncludesTheTransformation()
+    {
+        using var document = PdfiumDocument.Load(ScaledTextPdf());
+        // PDFium reports both as set at their Tf size, 1 and 10; drawn, they are 24 and 20.
+        await Verify(document.RenderPageHtml(0, textOnly), "html")
+            .Snapshot(
+                """
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
+                <text x="72" y="92" font-size="24" textLength="217.42" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Scaled by the matrix</text>
+                <text x="72" y="192" font-size="20" textLength="184.56" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Doubled by the page</text>
+                </svg>
+                </div>
+
+                """);
+    }
+
+    // Text drawn as an outline, filled and outlined, and only added to the clipping path.
+    internal static byte[] StrokedTextPdf() =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(
+                """
+                BT /F1 36 Tf 1 Tr 0 0 1 RG 2 w 72 700 Td (Outline) Tj ET
+                BT /F1 36 Tf 2 Tr 1 0 0 rg 0 0 1 RG 1 w 72 640 Td (Filled and outlined) Tj ET
+                BT /F1 36 Tf 7 Tr 72 580 Td (Clip only) Tj ET
+                BT /F1 36 Tf 0 Tr 0 g 72 520 Td (Filled) Tj ET
+                """),
+            [5] = CraftedPdf.Helvetica
+        });
+
+    [Test]
+    public async Task StrokedText()
+    {
+        using var document = PdfiumDocument.Load(StrokedTextPdf());
+        // Text that only clips draws nothing, so it is left out like invisible text.
+        await Verify(document.RenderPageHtml(0, textOnly), "html")
+            .Snapshot(
+                """
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
+                <text x="72" y="92" font-size="36" textLength="114.05" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="none" stroke="#0000ff" stroke-width="2">Outline</text>
+                <text x="72" y="152" font-size="36" textLength="292.14" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="#ff0000" stroke="#0000ff" stroke-width="1">Filled and outlined</text>
+                <text x="72" y="272" font-size="36" textLength="86" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Filled</text>
+                </svg>
+                </div>
+
+                """);
+    }
+
+    [Test]
+    public async Task ShearedText()
+    {
+        // Slanted by its text matrix along a horizontal baseline, and slanted and turned 30
+        // degrees anticlockwise. PDFium measures its character angle from the slanted y axis,
+        // so it reports the first as turned too; the matrix's x axis is the true baseline.
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(
+                """
+                BT /F1 1 Tf 20 0 10 20 72 600 Tm (Sheared along the line) Tj ET
+                BT /F1 1 Tf 17.3205 10 -1.3397 22.3205 72 300 Tm (Sheared and turned) Tj ET
+                """),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("<text x=\"72\" y=\"192\" font-size=\"20\"");
+        await Assert.That(html).Contains("transform=\"rotate(-30 72 492)\"");
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task LigatureStaysInOneRun()
+    {
+        // The font's ToUnicode map reads the glyph for "A" as the three letters "ffi", as a
+        // ligature glyph would be, so PDFium reports f, f and i at one origin.
+        const string toUnicode =
+            """
+            /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+            /CMapName /Ligature def /CMapType 2 def
+            1 begincodespacerange <00> <FF> endcodespacerange
+            2 beginbfrange <20> <40> <0020> <42> <7E> <0042> endbfrange
+            1 beginbfchar <41> <006600660069> endbfchar
+            endcmap CMapName currentdict /CMap defineresource pop end end
+            """;
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 24 Tf 72 700 Td (eAcient) Tj ET"),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(toUnicode)
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains(">efficient</text>");
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+    }
+
     [Test]
     public async Task ColumnsAreSeparateRuns()
     {

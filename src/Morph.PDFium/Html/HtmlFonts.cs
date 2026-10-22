@@ -13,7 +13,8 @@ static class HtmlFonts
     const int italic = 64;
     const int forceBold = 1 << 18;
 
-    public static HtmlTextStyle Style(string? fontName, int flags, int weight, PdfColor fill)
+    // The font's part of the look; the caller adds the colors.
+    public static HtmlTextStyle Style(string? fontName, int flags, int weight)
     {
         var name = StripSubsetPrefix(fontName);
         var family = Family(name);
@@ -30,7 +31,7 @@ static class HtmlFonts
         }
 
         var isItalic = (flags & italic) != 0 || Contains(name, "Italic") || Contains(name, "Oblique");
-        return new(family, Generic(name, flags), weight, isItalic, fill);
+        return new(family, Generic(name, flags), weight, isItalic, null, null, 0);
     }
 
     // A subset font's name starts with six capital letters and a plus sign.

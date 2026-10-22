@@ -213,7 +213,7 @@ File.WriteAllText(Path.Combine(directory, "document.html"), html);
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L242-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-`RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image and make the text visible. The text keeps its color, weight and style, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over.
+`RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image and make the text visible. The text keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over.
 
 <!-- snippet: RenderTextHtml -->
 <a id='snippet-RenderTextHtml'></a>

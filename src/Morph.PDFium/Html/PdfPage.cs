@@ -167,26 +167,79 @@ public sealed partial class PdfPage
             var box = PdfiumNative.FPDFText_GetLooseCharBox(text, index, out var loose)
                 ? new PdfRectangle(loose.Left, loose.Bottom, loose.Right, loose.Top)
                 : default;
+            // PDFium reports the size the text was set at. The text matrix and the page's
+            // transformation then scale it to the size it is drawn at: some producers set all
+            // text at size 1 and scale it up that way.
             var fontSize = PdfiumNative.FPDFText_GetFontSize(text, index);
+            // The character's matrix: its text matrix combined with the page's transformation.
+            // Without one, a plain turn by PDFium's character angle, which it measures from the
+            // matrix's y axis, so it is off for sheared text. A failed read returns -1. The
+            // angle is clockwise, though page y runs up.
+            var angle = Math.Max(0, PdfiumNative.FPDFText_GetCharAngle(text, index));
+            var (a, b, c, d) = (Math.Cos(angle), -Math.Sin(angle), Math.Sin(angle), Math.Cos(angle));
+            if (PdfiumNative.FPDFText_GetMatrix(text, index, out var charMatrix) &&
+                (charMatrix.A != 0 || charMatrix.B != 0))
+            {
+                (a, b, c, d) = (charMatrix.A, charMatrix.B, charMatrix.C, charMatrix.D);
+            }
+
+            // The baseline runs along the matrix's x axis.
+            var length = Math.Sqrt(a * a + b * b);
+            // The size the text was set at, scaled by how far the matrix stretches the glyph
+            // across its baseline: the area of the unit square it maps to over that square's
+            // width along the baseline. Unlike the length of its y axis, this ignores the slant
+            // of sheared text. Some producers set all text at size 1 and scale it up this way.
+            fontSize *= Math.Abs(a * d - b * c) / length;
             if (fontSize <= 0)
             {
                 fontSize = Math.Max(1, box.Height);
             }
 
-            var angle = PdfiumNative.FPDFText_GetCharAngle(text, index);
-            builder.Add((int) unicode, x, y, box, fontSize, Math.Max(0, angle), style);
+            builder.Add((int) unicode, x, y, Advance(box, a, b, c, d, fontSize), fontSize, a / length, b / length, style);
         }
 
         builder.Flush();
         return builder.Runs;
     }
 
+    // The character's advance along its baseline, in page points, from its loose box. That box
+    // is the upright rectangle around the character's text space box (its advance w across,
+    // the font's ascent to descent h up) mapped by its matrix (a b c d), so it is |a|w + |c|h
+    // wide and |b|w + |d|h high. Solving those for w and scaling it by the length of the
+    // matrix's x axis gives the advance. Where the two cannot be told apart, for text turned
+    // near 45 degrees, or there is no box, half an em is assumed.
+    static double Advance(PdfRectangle box, double a, double b, double c, double d, double fontSize)
+    {
+        if (box.Width <= 0 || box.Height <= 0)
+        {
+            return fontSize * 0.5;
+        }
+
+        var (absA, absB, absC, absD) = (Math.Abs(a), Math.Abs(b), Math.Abs(c), Math.Abs(d));
+        var xAxis = Math.Sqrt(a * a + b * b);
+        var yAxis = Math.Sqrt(c * c + d * d);
+        var determinant = absA * absD - absC * absB;
+        if (Math.Abs(determinant) < 0.25 * xAxis * yAxis)
+        {
+            return fontSize * 0.5;
+        }
+
+        var width = (box.Width * absD - box.Height * absC) / determinant;
+        return Math.Clamp(width * xAxis, 0, fontSize * 2);
+    }
+
     // Caller must hold PdfiumNative.Sync. The look of the character at index, or null when its
     // text object draws it invisibly.
     static HtmlTextStyle? ReadTextStyle(IntPtr text, int index, IntPtr textObject)
     {
-        if (textObject != IntPtr.Zero &&
-            PdfiumNative.FPDFTextObj_GetTextRenderMode(textObject) == PdfiumNative.TextRenderModeInvisible)
+        var mode = PdfiumNative.TextRenderModeFill;
+        if (textObject != IntPtr.Zero)
+        {
+            // Modes 4 to 7 draw as 0 to 3 do; an unknown mode (-1) is drawn filled.
+            mode = Math.Max(PdfiumNative.TextRenderModeFill, PdfiumNative.FPDFTextObj_GetTextRenderMode(textObject)) % 4;
+        }
+
+        if (mode == PdfiumNative.TextRenderModeInvisible)
         {
             return null;
         }
@@ -198,13 +251,39 @@ public sealed partial class PdfPage
             PdfiumNative.FPDFText_GetFontInfo(text, index, [], 0, out flags);
         }
 
-        var color = new PdfColor(0, 0, 0, 255);
-        if (PdfiumNative.FPDFText_GetFillColor(text, index, out var r, out var g, out var b, out var a))
+        PdfColor? fill = null;
+        if (mode is PdfiumNative.TextRenderModeFill or PdfiumNative.TextRenderModeFillStroke)
         {
-            color = new((byte) r, (byte) g, (byte) b, (byte) a);
+            fill = new PdfColor(0, 0, 0, 255);
+            if (PdfiumNative.FPDFText_GetFillColor(text, index, out var r, out var g, out var b, out var a))
+            {
+                fill = new((byte) r, (byte) g, (byte) b, (byte) a);
+            }
         }
 
-        return HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index), color);
+        PdfColor? stroke = null;
+        double strokeWidth = 0;
+        if (mode is PdfiumNative.TextRenderModeStroke or PdfiumNative.TextRenderModeFillStroke)
+        {
+            stroke = new PdfColor(0, 0, 0, 255);
+            if (PdfiumNative.FPDFText_GetStrokeColor(text, index, out var r, out var g, out var b, out var a))
+            {
+                stroke = new((byte) r, (byte) g, (byte) b, (byte) a);
+            }
+
+            if (textObject != IntPtr.Zero && PdfiumNative.FPDFPageObj_GetStrokeWidth(textObject, out var width))
+            {
+                strokeWidth = width;
+            }
+        }
+
+        var look = HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index));
+        return look with
+        {
+            Fill = fill,
+            Stroke = stroke,
+            StrokeWidth = strokeWidth
+        };
     }
 
     List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, string pageIdPrefix)
