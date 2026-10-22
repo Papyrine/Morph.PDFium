@@ -15,7 +15,8 @@ public class EncodeBenchmarks
         pages = new (byte[], int, int)[document.PageCount];
         for (var index = 0; index < pages.Length; index++)
         {
-            pages[index] = document.RenderPixels(index, Dpi, PdfiumNative.RenderAnnotations, PdfiumDocument.OpaqueWhite, null);
+            using var rendered = document.RenderPixels(index, Dpi, PdfiumNative.RenderAnnotations, PdfiumDocument.OpaqueWhite, null);
+            pages[index] = (rendered.Pixels.ToArray(), rendered.Width, rendered.Height);
         }
     }
 

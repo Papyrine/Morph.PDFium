@@ -144,14 +144,9 @@ public sealed class PdfForm :
     public byte[] RenderPage(int index, RenderOptions? options = null)
     {
         options ??= new();
-        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
-        }
+        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
 
-        byte[] pixels;
-        int width;
-        int height;
+        RenderedPixels rendered;
         // Held across the render so the form cannot be disposed between the check and its use.
         lock (PdfiumNative.Sync)
         {
@@ -159,10 +154,13 @@ public sealed class PdfForm :
             // Touch the document so a disposed document surfaces as ObjectDisposedException.
             _ = document.Handle;
             document.ValidateIndex(index);
-            (pixels, width, height) = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
+            rendered = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
         }
 
-        return PngEncoder.Encode(pixels, width, height, options.Dpi);
+        using (rendered)
+        {
+            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
+        }
     }
 
     public void Dispose()

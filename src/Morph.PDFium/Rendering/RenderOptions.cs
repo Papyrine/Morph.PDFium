@@ -31,6 +31,16 @@ public sealed record RenderOptions
     /// <summary>The background color filled before rendering. Defaults to opaque white.</summary>
     public PdfColor Background { get; init; } = new(255, 255, 255, 255);
 
+    // Shared by every render entry point. paramName is the caller's parameter: the options, or
+    // a bare dpi.
+    internal static void ValidateDpi(double dpi, string paramName)
+    {
+        if (!double.IsFinite(dpi) || dpi <= 0)
+        {
+            throw new ArgumentOutOfRangeException(paramName, dpi, "dpi must be positive and finite");
+        }
+    }
+
     internal int ToFlags()
     {
         var flags = 0;

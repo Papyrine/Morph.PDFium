@@ -8,13 +8,10 @@ public sealed partial class PdfiumDocument
         ArgumentNullException.ThrowIfNull(options);
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
-        }
+        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
 
-        var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null);
-        return PngEncoder.Encode(pixels, width, height, options.Dpi);
+        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
     }
 
     /// <summary>
@@ -30,18 +27,19 @@ public sealed partial class PdfiumDocument
         options ??= new();
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (!double.IsFinite(options.Dpi) || options.Dpi <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Dpi, "dpi must be positive and finite");
-        }
+        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
+        ValidateClip(clip);
 
+        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
+    }
+
+    internal static void ValidateClip(PdfRectangle clip)
+    {
         // Written so that NaN, which fails every comparison, is rejected along with infinity.
         if (!double.IsFinite(clip.Width) || !double.IsFinite(clip.Height) || clip.Width <= 0 || clip.Height <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(clip), clip, "clip must have positive, finite width and height");
         }
-
-        var (pixels, width, height) = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
-        return PngEncoder.Encode(pixels, width, height, options.Dpi);
     }
 }

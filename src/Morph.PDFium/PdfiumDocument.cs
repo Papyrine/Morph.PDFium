@@ -199,14 +199,11 @@ public sealed partial class PdfiumDocument :
     {
         ThrowIfDisposed();
         ValidateIndex(index);
-        if (!double.IsFinite(dpi) || dpi <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(dpi), dpi, "dpi must be positive and finite");
-        }
+        RenderOptions.ValidateDpi(dpi, nameof(dpi));
 
-        var (pixels, width, height) = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
+        using var rendered = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
         // Encode outside the PDFium lock: it is pure managed work
-        return PngEncoder.Encode(pixels, width, height, dpi);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi);
     }
 
     public List<byte[]> RenderPages(double dpi = 96)
@@ -242,7 +239,9 @@ public sealed partial class PdfiumDocument :
     // ReverseByteOrder is always added so PDFium emits RGBA matching the PNG encoder. background
     // must already be in the bitmap's byte order (see RenderOptions.ToFillColor). When clip is
     // null the whole page is rendered; otherwise only that rectangle, given in page coordinates.
-    internal (byte[] pixels, int width, int height) RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = default)
+    // The pixels come back in a pooled buffer, so the caller disposes the result once it is
+    // done with them.
+    internal RenderedPixels RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = default)
     {
         lock (PdfiumNative.Sync)
         {
@@ -284,7 +283,7 @@ public sealed partial class PdfiumDocument :
     }
 
     // Caller must hold PdfiumNative.Sync.
-    static (byte[] pixels, int width, int height) RenderLoadedPage(IntPtr page, PdfiumNative.PageSizeF size, int index, double dpi, int flags, uint background, PdfRectangle? clip, IntPtr formHandle)
+    internal static RenderedPixels RenderLoadedPage(IntPtr page, PdfiumNative.PageSizeF size, int index, double dpi, int flags, uint background, PdfRectangle? clip, IntPtr formHandle)
     {
         // The part of the displayed page to draw, in points from its top-left corner.
         var area = (Left: 0d, Top: 0d, Width: (double) size.Width, Height: (double) size.Height);
@@ -306,8 +305,10 @@ public sealed partial class PdfiumDocument :
         }
 
         var stride = width * 4;
-        // Not zeroed: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
-        var pixels = GC.AllocateUninitializedArray<byte>((int) (pixelCount * 4));
+        // Rented, not allocated: a page's pixels run to megabytes, and a fresh array that size
+        // costs page faults to first touch and a gen2 collection to reclaim, every page. It is
+        // not cleared: FPDFBitmap_FillRect below overwrites every byte before anything reads it.
+        var pixels = ArrayPool<byte>.Shared.Rent((int) (pixelCount * 4));
         var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
         try
         {
@@ -363,12 +364,18 @@ public sealed partial class PdfiumDocument :
                 PdfiumNative.FPDFBitmap_Destroy(bitmap);
             }
         }
+        catch
+        {
+            // The caller never sees the buffer, so it goes back to the pool here.
+            ArrayPool<byte>.Shared.Return(pixels);
+            throw;
+        }
         finally
         {
             pinned.Free();
         }
 
-        return (pixels, width, height);
+        return new(pixels, width, height);
     }
 
     // Caller must hold PdfiumNative.Sync. Converts a rectangle in page coordinates, the
