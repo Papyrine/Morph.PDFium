@@ -13,7 +13,7 @@ public class PngEncoderTests
     {
         var rgba = RepeatingRows();
         var png = PngEncoder.Encode(rgba, width, height, 96, 6);
-        var (colorType, filters, pixels) = Decode(png);
+        var (colorType, filters, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 0);
@@ -25,7 +25,7 @@ public class PngEncoderTests
     {
         var rgba = DriftingRows(color: false);
         var png = PngEncoder.Encode(rgba, width, height, 96, 6);
-        var (colorType, filters, pixels) = Decode(png);
+        var (colorType, filters, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 2);
@@ -37,7 +37,7 @@ public class PngEncoderTests
     {
         var rgba = DriftingRows(color: true);
         var png = PngEncoder.Encode(rgba, width, height, 96, 6);
-        var (colorType, filters, pixels) = Decode(png);
+        var (colorType, filters, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 2);
@@ -54,7 +54,7 @@ public class PngEncoderTests
         }
 
         var png = PngEncoder.Encode(rgba, width, height, 96, 6);
-        var (colorType, _, pixels) = Decode(png);
+        var (colorType, _, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
         await Assert.That(pixels).IsEquivalentTo(rgba);
@@ -68,7 +68,7 @@ public class PngEncoderTests
         foreach (var level in new[] { 0, 1, 4, 9 })
         {
             var png = PngEncoder.Encode(rgba, width, height, 96, level);
-            var (_, _, pixels) = Decode(png);
+            var (_, _, pixels) = Decode(png, width, height);
             await Assert.That(pixels).IsEquivalentTo(rgba);
             sizes.Add(png.Length);
         }
@@ -78,6 +78,83 @@ public class PngEncoderTests
         await Assert.That(sizes[1]).IsLessThan(sizes[0]);
         await Assert.That(sizes[2]).IsLessThanOrEqualTo(sizes[1]);
         await Assert.That(sizes[3]).IsLessThanOrEqualTo(sizes[2]);
+    }
+
+    // One colour pixel right at the end means the gray plane is built in full and then found
+    // unusable, which must still leave the image encoded as RGBA.
+    [Test]
+    public async Task GrayExceptLastPixelKeepsRgba()
+    {
+        var rgba = RepeatingRows();
+        rgba[^4] = 255;
+        rgba[^3] = 0;
+        rgba[^2] = 0;
+        var png = PngEncoder.Encode(rgba, width, height, 96, 6);
+        var (colorType, _, pixels) = Decode(png, width, height);
+
+        await Assert.That(colorType).IsEqualTo((byte) 6);
+        await Assert.That(pixels).IsEquivalentTo(rgba);
+    }
+
+    // A pixel count that is not a multiple of any vector width, so the scalar tail of the gray
+    // extraction runs as well as its vector blocks.
+    [Test]
+    public async Task OddSizedGrayImageRoundTrips()
+    {
+        const int oddWidth = 203;
+        const int oddHeight = 37;
+        var random = new Random(3);
+        var rgba = new byte[oddWidth * oddHeight * 4];
+        for (var pixel = 0; pixel < rgba.Length; pixel += 4)
+        {
+            var level = (byte) random.Next(256);
+            rgba[pixel] = level;
+            rgba[pixel + 1] = level;
+            rgba[pixel + 2] = level;
+            rgba[pixel + 3] = 255;
+        }
+
+        var png = PngEncoder.Encode(rgba, oddWidth, oddHeight, 96, 6);
+        var (colorType, _, pixels) = Decode(png, oddWidth, oddHeight);
+
+        await Assert.That(colorType).IsEqualTo((byte) 0);
+        await Assert.That(pixels).IsEquivalentTo(Reds(rgba));
+    }
+
+    // The encoder's table driven CRC must agree with the bit by bit definition on every chunk,
+    // whose lengths exercise both its eight byte steps and its tail.
+    [Test]
+    public async Task ChunkCrcsAreCorrect()
+    {
+        foreach (var rgba in new[] { RepeatingRows(), DriftingRows(color: true) })
+        {
+            var png = PngEncoder.Encode(rgba, width, height, 96, 6);
+            var offset = 8;
+            while (offset < png.Length)
+            {
+                var length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset));
+                // The CRC covers the chunk type and data but not the length.
+                var expected = ReferenceCrc(png.AsSpan(offset + 4, 4 + length));
+                var stored = BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(offset + 8 + length));
+                await Assert.That(stored).IsEqualTo(expected);
+                offset += 12 + length;
+            }
+        }
+    }
+
+    static uint ReferenceCrc(ReadOnlySpan<byte> data)
+    {
+        var crc = uint.MaxValue;
+        foreach (var value in data)
+        {
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) == 1 ? 0xEDB88320 ^ (crc >> 1) : crc >> 1;
+            }
+        }
+
+        return crc ^ uint.MaxValue;
     }
 
     // Gray rows that repeat exactly two rows back, as the glyph shapes of a text page recur
@@ -144,7 +221,7 @@ public class PngEncoderTests
 
     // Reads the color type and, by inflating the image data and undoing the filters, the
     // scanlines the file holds.
-    static (byte colorType, List<byte> filters, byte[] pixels) Decode(byte[] png)
+    static (byte colorType, List<byte> filters, byte[] pixels) Decode(byte[] png, int width, int height)
     {
         byte colorType = 0;
         using var compressed = new MemoryStream();
