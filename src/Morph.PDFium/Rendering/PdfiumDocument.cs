@@ -15,6 +15,17 @@ public sealed partial class PdfiumDocument
     }
 
     /// <summary>
+    /// Renders every page to a PNG using the supplied <paramref name="options"/>, in parallel
+    /// through <see cref="ProcessPages{T}(Func{PdfPage,T})"/>.
+    /// </summary>
+    public List<byte[]> RenderPages(RenderOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate(nameof(options));
+        return [.. ProcessPages(_ => _.Render(options))];
+    }
+
+    /// <summary>
     /// Renders only the <paramref name="clip"/> rectangle of a page, scaled to
     /// <paramref name="options"/>.Dpi, to a PNG. Useful for tiles, thumbnails of a region, or
     /// zoomed views. The rectangle is in page coordinates, the same space that text, link

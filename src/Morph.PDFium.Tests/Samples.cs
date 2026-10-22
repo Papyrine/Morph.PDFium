@@ -189,6 +189,20 @@ public class Samples
     }
 
     [Test]
+    public async Task ProcessPages()
+    {
+        #region ProcessPages
+
+        using var document = PdfiumDocument.Load("multi-page.pdf");
+        // Pages are spread across cores: PDFium works on one at a time, the PNG encoding overlaps
+        var pages = document.ProcessPages(_ => (Text: _.GetText(), Png: _.Render(dpi: 96)));
+
+        #endregion
+
+        await Assert.That(pages.Count).IsEqualTo(4);
+    }
+
+    [Test]
     public async Task RenderOpenPage()
     {
         #region RenderOpenPage
