@@ -27,11 +27,6 @@ public sealed partial class PdfiumDocument
     /// </summary>
     public PdfPage NewPage(int index, double width, double height)
     {
-        if (index < 0 || index > pageCount)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
-        }
-
         // PDFium accepts any numbers here and stores them as the page's media box, NaN included.
         if (!double.IsFinite(width) || width <= 0)
         {
@@ -46,6 +41,13 @@ public sealed partial class PdfiumDocument
         lock (PdfiumNative.Sync)
         {
             var doc = Handle;
+            // Under the lock, so a page deleted on another thread cannot leave the new page
+            // reporting an index past the end. PDFium clamps rather than failing.
+            if (index < 0 || index > pageCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
+            }
+
             var page = PdfiumNative.FPDFPage_New(doc, index, width, height);
             if (page == IntPtr.Zero)
             {
@@ -83,8 +85,11 @@ public sealed partial class PdfiumDocument
     /// Imports pages from <paramref name="source"/> into this document, inserting them before
     /// the page at <paramref name="index"/>, or appending them when it is null.
     /// <paramref name="pageRange"/> is a 1-based range string such as "1,3,5-7"; pass null to
-    /// import every page.
+    /// import every page. <paramref name="source"/> may be this document itself.
     /// </summary>
+    // Preferred over the span overload, so that a null range picks this one rather than being
+    // ambiguous between the two.
+    [OverloadResolutionPriority(1)]
     public void ImportPages(PdfiumDocument source, string? pageRange = null, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -97,32 +102,36 @@ public sealed partial class PdfiumDocument
         var range = pageRange is null ? default : Encoding.ASCII.GetBytes(pageRange + '\0');
         lock (PdfiumNative.Sync)
         {
-            var doc = Handle;
-            var src = source.Handle;
-            source.GeneratePendingContent();
-            if (!PdfiumNative.FPDF_ImportPages(doc, src, range, index ?? pageCount))
+            if (!Import(source, index, (destination, from, at) => PdfiumNative.FPDF_ImportPages(destination, from, range, at)))
             {
                 throw new PdfiumException("Failed to import pages (invalid page range?)");
             }
-
-            var before = pageCount;
-            RefreshPageCount();
-            ShiftOpenPages(index ?? before, pageCount - before);
         }
     }
 
     /// <summary>
     /// Imports the pages at the given zero-based <paramref name="pageIndices"/> from
     /// <paramref name="source"/> into this document, inserting them before the page at
-    /// <paramref name="index"/>, or appending them when it is null. An empty list imports nothing.
+    /// <paramref name="index"/>, or appending them when it is null. An empty list imports
+    /// nothing. <paramref name="source"/> may be this document itself.
     /// </summary>
     public void ImportPages(PdfiumDocument source, ReadOnlySpan<int> pageIndices, int? index = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         lock (PdfiumNative.Sync)
         {
-            var doc = Handle;
-            var src = source.Handle;
+            _ = Handle;
+            var count = source.PageCount;
+            // PDFium does not check these first: it inserts a blank page for an index past the
+            // source's end, and only then fails, leaving the blank page behind.
+            foreach (var pageIndex in pageIndices)
+            {
+                if (pageIndex < 0 || pageIndex >= count)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(pageIndices), pageIndex, $"Page indices must be in the range [0, {count - 1}] of the source document");
+                }
+            }
+
             // Nothing to import. This cannot be left to PDFium: an empty span may reach it as
             // a null pointer, which it takes to mean every page.
             if (pageIndices.IsEmpty)
@@ -130,15 +139,48 @@ public sealed partial class PdfiumDocument
                 return;
             }
 
-            source.GeneratePendingContent();
-            if (!PdfiumNative.FPDF_ImportPagesByIndex(doc, src, pageIndices, (uint) pageIndices.Length, index ?? pageCount))
+            int[] indices = [.. pageIndices];
+            if (!Import(source, index, (destination, from, at) => PdfiumNative.FPDF_ImportPagesByIndex(destination, from, indices, (uint) indices.Length, at)))
             {
                 throw new PdfiumException("Failed to import pages (invalid indices?)");
             }
+        }
+    }
 
-            var before = pageCount;
+    // Caller must hold PdfiumNative.Sync. Runs import, which copies pages from source's native
+    // document into this one's at the given index, and keeps the page count and open pages
+    // right whatever it did.
+    bool Import(PdfiumDocument source, int? index, Func<IntPtr, IntPtr, int, bool> import)
+    {
+        var doc = Handle;
+        var src = source.Handle;
+        // PDFium does not clamp this, as it does for a new page; it fails with a misleading
+        // message instead.
+        if (index is < 0 || index > pageCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index), index, $"Page index must be in the range [0, {pageCount}]");
+        }
+
+        source.GeneratePendingContent();
+        var at = index ?? pageCount;
+        var before = pageCount;
+        try
+        {
+            if (ReferenceEquals(source, this) && at < pageCount)
+            {
+                // PDFium inserts each page before it reads the next, so pages taken from this
+                // document ahead of themselves would move under it: it copied the wrong page,
+                // or aborted the process. A copy of the document holds still.
+                using var copy = Load(Save());
+                return import(doc, copy.Handle, at);
+            }
+
+            return import(doc, src, at);
+        }
+        finally
+        {
             RefreshPageCount();
-            ShiftOpenPages(index ?? before, pageCount - before);
+            ShiftOpenPages(at, pageCount - before);
         }
     }
 

@@ -131,6 +131,70 @@ public class EditTests
         await Assert.That(PageText(merged, 1)).IsEqualTo(PageText(first, 0));
     }
 
+    // PDFium inserts each page before reading the next, so importing a document's own pages
+    // ahead of themselves moved them under it: it aborted the process, or copied the wrong page.
+    [Test]
+    public async Task ImportPagesFromItselfAtIndex()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        string?[] original = [.. Enumerable.Range(0, 4).Select(_ => PageText(document, _))];
+
+        document.ImportPages(document, "4", index: 0);
+        await Assert.That(document.PageCount).IsEqualTo(5);
+        await Assert.That(PageText(document, 0)).IsEqualTo(original[3]);
+
+        document.ImportPages(document, [1, 2], 1);
+        await Assert.That(document.PageCount).IsEqualTo(7);
+        // The pages that were at 1 and 2 when the import began: original pages 0 and 1.
+        await Assert.That(PageText(document, 1)).IsEqualTo(original[0]);
+        await Assert.That(PageText(document, 2)).IsEqualTo(original[1]);
+
+        document.ImportPages(document, index: 0);
+        await Assert.That(document.PageCount).IsEqualTo(14);
+        await Assert.That(PageText(document, 0)).IsEqualTo(original[3]);
+        await Assert.That(PageText(document, 7)).IsEqualTo(original[3]);
+    }
+
+    // PDFium inserts a blank page for an index past the source's end and then fails, so the
+    // indices are checked first: nothing is imported, and the document is as it was.
+    [Test]
+    public async Task ImportPagesRejectsIndicesPastTheSource()
+    {
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        using var page = document.LoadPage(0);
+        await Assert.That(() => document.ImportPages(source, [99], 0)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.ImportPages(source, [0, 1, 4], 0)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.ImportPages(source, [-1])).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(document.PageCount).IsEqualTo(1);
+        await Assert.That(page.Index).IsEqualTo(0);
+        using var saved = PdfiumDocument.Load(document.Save());
+        await Assert.That(saved.PageCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ImportPagesRejectsAnIndexOutsideTheDocument()
+    {
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        await Assert.That(() => document.ImportPages(source, index: 2)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.ImportPages(source, index: -1)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.ImportPages(source, [0], 2)).Throws<ArgumentOutOfRangeException>();
+        // One past the end appends.
+        document.ImportPages(source, "1", index: 1);
+        await Assert.That(document.PageCount).IsEqualTo(2);
+    }
+
+    // The documented way to import every page at an index: a null range.
+    [Test]
+    public async Task ImportPagesWithNullRange()
+    {
+        using var source = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        document.ImportPages(source, null, 0);
+        await Assert.That(document.PageCount).IsEqualTo(5);
+    }
+
     static string? PageText(PdfiumDocument document, int index)
     {
         using var page = document.LoadPage(index);
@@ -199,6 +263,58 @@ public class EditTests
         // The name is free again, and the new attachment is usable.
         var again = document.AddAttachment("a.bin", [7]);
         await Bytes.AreEqual(again.GetData(), new byte[] { 7 });
+    }
+
+    // An attachment whose file specification is a dictionary held directly in the name tree,
+    // which PDFium frees when it is deleted, and nine held as objects of their own.
+    static byte[] PdfWithAttachments()
+    {
+        var objects = new SortedDictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 10 0 R >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+            [11] = CraftedPdf.Stream("direct", "/Type /EmbeddedFile")
+        };
+        var names = new StringBuilder("(a.txt) << /Type /Filespec /F (a.txt) /EF << /F 11 0 R >> >>");
+        for (var index = 0; index < 9; index++)
+        {
+            var name = $"{(char) ('b' + index)}.txt";
+            objects[20 + index * 2] = $"<< /Type /Filespec /F ({name}) /EF << /F {21 + index * 2} 0 R >> >>";
+            objects[21 + index * 2] = CraftedPdf.Stream(name, "/Type /EmbeddedFile");
+            names.Append($" ({name}) {20 + index * 2} 0 R");
+        }
+
+        objects[10] = $"<< /Names [{names}] >>";
+        return CraftedPdf.Build(objects);
+    }
+
+    // PDFium reuses the address of a deleted attachment, so deletion is tracked on the
+    // attachment rather than the address: a deleted one never answers for a new attachment
+    // that lands on its address, and a live one that lands on it is not taken for deleted.
+    [Test]
+    public async Task DeletedAttachmentsAreTrackedApartFromTheirAddress()
+    {
+        var pdf = PdfWithAttachments();
+        for (var round = 0; round < 100; round++)
+        {
+            using var document = PdfiumDocument.Load(pdf);
+            var deleted = document.GetAttachments()[0];
+            document.DeleteAttachment(0);
+            foreach (var attachment in document.GetAttachments())
+            {
+                await Assert.That(attachment.Name).IsNotEqualTo("a.txt");
+                await Assert.That(attachment.GetData().Length).IsGreaterThan(0);
+            }
+
+            for (var index = 0; index < 5; index++)
+            {
+                document.AddAttachment($"new{index}.bin", [(byte) index]);
+            }
+
+            await Assert.That(() => deleted.Name).Throws<InvalidOperationException>();
+            await Assert.That(document.GetAttachments().Count).IsEqualTo(14);
+        }
     }
 
     // One page with a line of text and a stamp annotation whose appearance is a red square,

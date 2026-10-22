@@ -47,6 +47,12 @@ public sealed partial class PdfiumDocument :
         return Load(buffer.ToArray(), password);
     }
 
+    /// <summary>
+    /// Loads a document from <paramref name="bytes"/>. PDFium reads from the array as it needs
+    /// to for as long as the document is open, so it is used in place, not copied, and must not
+    /// be changed or reused (returned to an <see cref="ArrayPool{T}"/>, say) until the document
+    /// is disposed.
+    /// </summary>
     public static PdfiumDocument Load(byte[] bytes, string? password = null)
     {
         ArgumentNullException.ThrowIfNull(bytes);
@@ -230,8 +236,9 @@ public sealed partial class PdfiumDocument :
         lock (PdfiumNative.Sync)
         {
             // Callers validate up front, but only a check made under the lock is safe
-            // against a Dispose on another thread.
+            // against a Dispose, or a page deleted, on another thread.
             ThrowIfDisposed();
+            ValidateIndex(index);
             GeneratePendingContent();
             if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
             {

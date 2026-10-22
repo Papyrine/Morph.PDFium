@@ -164,7 +164,7 @@ public sealed partial class PdfPage
                 continue;
             }
 
-            if (unicode is ' ' or '\t' or ' ' || PdfiumNative.FPDFText_IsGenerated(text, index) == 1)
+            if (unicode is ' ' or '\t' or '\u00A0' || PdfiumNative.FPDFText_IsGenerated(text, index) == 1)
             {
                 builder.Space();
                 continue;

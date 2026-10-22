@@ -446,7 +446,7 @@ static class HtmlWriter
                     builder.Append(character);
                     break;
                 // C0 and C1 controls and DEL, and the two noncharacters a UTF-16 unit can hold.
-                case < ' ' or (>= '\u007F' and <= '\u009F') or '￾' or '￿':
+                case < ' ' or (>= '\u007F' and <= '\u009F') or '\uFFFE' or '\uFFFF':
                     break;
                 default:
                     if (char.IsHighSurrogate(character) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))

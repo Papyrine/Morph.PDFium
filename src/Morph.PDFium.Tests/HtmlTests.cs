@@ -1105,7 +1105,7 @@ public class HtmlTests
     public async Task SkippedSurrogatePairLeavesNoHalf()
     {
         // The ToUnicode map reads "A" as U+1F600, beyond the Basic Multilingual Plane, which
-        // PDFium on Windows reports as two characters, the halves of a surrogate pair. Drawn
+        // PDFium reports as two characters, the halves of a surrogate pair. Drawn
         // invisibly after visible text, visible HTML leaves the pair out, and must leave out
         // both halves rather than tack the second onto the visible text.
         const string toUnicode =
@@ -1129,7 +1129,7 @@ public class HtmlTests
         using var document = PdfiumDocument.Load(pdf);
         var visible = document.RenderPageHtml(0, textOnly);
         await Assert.That(visible).Contains(">Hello</text>");
-        await Assert.That(visible).DoesNotContain("�");
+        await Assert.That(visible).DoesNotContain("\uFFFD");
         // The overlay keeps invisible text, so it has the whole pair.
         var overlay = document.RenderPageHtml(
             0,
@@ -1168,7 +1168,7 @@ public class HtmlTests
         using var document = PdfiumDocument.Load(MarksPdf("BT /F1 20 Tf 72 700 Td (ab) Tj ET"));
         var html = document.RenderPageHtml(0, textOnly);
         await Assert.That(html).Contains("textLength=\"11.12\"");
-        await Assert.That(html).Contains(">á</text>");
+        await Assert.That(html).Contains(">a\u0301</text>");
     }
 
     // Control characters beyond ASCII (C1) and noncharacters are not allowed in HTML.
@@ -1179,7 +1179,7 @@ public class HtmlTests
         var html = document.RenderPageHtml(0, textOnly);
         await Assert.That(html).Contains(">aa</text>");
         await Assert.That(html).DoesNotContain("\u0095");
-        await Assert.That(html).DoesNotContain("￾");
+        await Assert.That(html).DoesNotContain("\uFFFE");
     }
 
     // Stretched to three times its width, each "W" is about 2.8 ems wide: a run's length is not
@@ -1242,7 +1242,7 @@ public class HtmlTests
         var html = document.RenderPageHtml(0, textOnly);
         await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
         await Assert.That(html).Contains("direction=\"rtl\"");
-        await Assert.That(html).Contains(">דגבא דגבא</text>");
+        await Assert.That(html).Contains(">\u05D3\u05D2\u05D1\u05D0 \u05D3\u05D2\u05D1\u05D0</text>");
     }
 
     // A nested list item: the indents after "1." and after "a)" each end a run, so neither is

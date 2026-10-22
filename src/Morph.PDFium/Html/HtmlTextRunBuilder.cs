@@ -145,7 +145,7 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
         }
         else
         {
-            text.Append('�');
+            text.Append('\uFFFD');
         }
 
         var along = Along(x, y);
