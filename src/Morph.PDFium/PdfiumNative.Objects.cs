@@ -11,6 +11,13 @@ static partial class PdfiumNative
     [LibraryImport(library)]
     internal static partial int FPDFPageObj_GetType(IntPtr pageObject);
 
+    // The objects inside a form XObject (page object type 5), which can themselves be forms.
+    [LibraryImport(library)]
+    internal static partial int FPDFFormObj_CountObjects(IntPtr formObject);
+
+    [LibraryImport(library)]
+    internal static partial IntPtr FPDFFormObj_GetObject(IntPtr formObject, uint index);
+
     [LibraryImport(library)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool FPDFPageObj_GetBounds(IntPtr pageObject, out float left, out float bottom, out float right, out float top);

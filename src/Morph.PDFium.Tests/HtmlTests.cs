@@ -128,6 +128,171 @@ public class HtmlTests
         await Assert.That(html).Contains("id=\"page-4\" style=\"position:relative;overflow:hidden;width:300.5pt;max-width:100%;aspect-ratio:300.5/400;background:#ffffff;page:pdf-300_5x400\"");
     }
 
+    // A one page PDF of the given content stream, with Helvetica as /F1 and a form XObject
+    // /Fm1 that draws the given form content.
+    static byte[] SinglePage(string content, string formContent = "") =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> /XObject << /Fm1 6 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(content),
+            [5] = CraftedPdf.Helvetica,
+            [6] = CraftedPdf.Stream(formContent, "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >>")
+        });
+
+    // The page image the HTML gets with visible text over it.
+    static byte[] Background(PdfiumDocument document)
+    {
+        byte[]? image = null;
+        document.RenderPageHtml(
+            0,
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (_, png) =>
+                {
+                    image = png;
+                    return "page.png";
+                }
+            });
+        return image!;
+    }
+
+    // PDFium's own render of the same page with the text taken out of its content: what the
+    // background should be, pixel for pixel, so byte for byte as a PNG.
+    static byte[] RenderOf(string content, string formContent = "")
+    {
+        using var document = PdfiumDocument.Load(SinglePage(content, formContent));
+        return document.RenderPage(0);
+    }
+
+    [Test]
+    public async Task BackgroundLeavesOutTheText()
+    {
+        const string drawing = "1 0 0 rg 72 500 200 100 re f 0 0 1 RG 4 w 300 300 m 500 450 l S";
+        using var document = PdfiumDocument.Load(SinglePage($"{drawing} 0 g BT /F1 24 Tf 72 700 Td (Some text) Tj ET BT /F1 12 Tf 1 Tr 72 650 Td (Outlined) Tj ET"));
+        var background = Background(document);
+        await Assert.That(background).IsEquivalentTo(RenderOf(drawing));
+        await Assert.That(background).IsNotEquivalentTo(document.RenderPage(0));
+    }
+
+    [Test]
+    public async Task BackgroundLeavesOutTextInForms()
+    {
+        using var document = PdfiumDocument.Load(SinglePage("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f BT /F1 24 Tf 72 700 Td (In a form) Tj ET"));
+        await Assert.That(Background(document)).IsEquivalentTo(RenderOf("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f"));
+    }
+
+    [Test]
+    public async Task BackgroundKeepsTextClipping()
+    {
+        // Mode 4 draws the text and clips what follows to its glyphs; left out of the
+        // background, the text must still clip, as mode 7 does without drawing.
+        const string clipped = "q BT /F1 120 Tf {0} Tr 72 500 Td (CLIP) Tj ET 0 0 1 rg 0 0 612 792 re f Q";
+        using var document = PdfiumDocument.Load(SinglePage(string.Format(clipped, 4)));
+        await Assert.That(Background(document)).IsEquivalentTo(RenderOf(string.Format(clipped, 7)));
+    }
+
+    // Every kind of text the background leaves out: over a drawing, outlined, inside a form,
+    // and clipping a fill, which must still be clipped.
+    static byte[] BackgroundPdf() =>
+        SinglePage(
+            """
+            1 0 0 rg 60 600 300 140 re f 0 0 1 RG 4 w 380 560 m 560 740 l S
+            0 g BT /F1 28 Tf 72 690 Td (Text over a drawing) Tj ET
+            BT /F1 36 Tf 1 Tr 0 0 1 RG 1 w 72 520 Td (Outlined text) Tj ET
+            q 1 0 0 1 0 -300 cm /Fm1 Do Q
+            q BT /F1 120 Tf 4 Tr 0 g 72 80 Td (CLIP) Tj ET 1 0.5 0 rg 0 0 612 792 re f Q
+            """,
+            "0 0.6 0 rg 60 600 300 100 re f 1 g BT /F1 24 Tf 0 Tr 80 640 Td (Text in a form) Tj ET");
+
+    [Test]
+    public async Task BackgroundSnapshot()
+    {
+        using var document = PdfiumDocument.Load(BackgroundPdf());
+        byte[]? background = null;
+        var html = document.RenderPageHtml(
+            0,
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (_, png) =>
+                {
+                    background = png;
+                    return "background.png";
+                }
+            });
+        // The HTML, the page image it draws its text over, and PDFium's full render beside it.
+        // The fill that "CLIP" clips is painted after the text, so in the render it hides the
+        // text, but the HTML draws the text on top: text covered by later drawing is not yet
+        // detected.
+        await Verify(
+            [
+                new("html", html),
+                new Target("png", new MemoryStream(background!), "background"),
+                new Target("png", new MemoryStream(document.RenderPage(0)), "render")
+            ])
+            .Snapshot(
+                """
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
+                <img src="background.png" alt="" draggable="false" style="position:absolute;left:0;top:0;width:100%;height:100%;user-select:none">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
+                <text x="72" y="102" font-size="28" textLength="245.87" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Text over a drawing</text>
+                <text x="72" y="272" font-size="36" textLength="202.1" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="none" stroke="#0000ff" stroke-width="1">Outlined text</text>
+                <text x="80" y="452" font-size="24" textLength="146.71" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="#ffffff">Text in a form</text>
+                <text x="72" y="712" font-size="120" textLength="266.76" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">CLIP</text>
+                </svg>
+                </div>
+
+                """);
+    }
+
+    [Test]
+    public async Task DocumentWithBackgrounds()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        var html = document.RenderHtml(
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (index, _) => $"page{index + 1}.png"
+            });
+        await Verify(html, "html");
+    }
+
+    [Test]
+    public async Task BackgroundRestoresTheText()
+    {
+        var pdf = SinglePage("1 0 0 rg 72 500 200 100 re f 0 g BT /F1 24 Tf 72 700 Td (Some text) Tj ET BT /F1 24 Tf 6 Tr 72 400 Td (Clipping) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        using var page = document.LoadPage(0);
+        var render = page.Render();
+        var saved = WithoutTrailer(document.Save());
+        var text = page.GetText();
+
+        page.RenderHtml(
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (_, _) => "page.png"
+            });
+
+        // The same page, the document and a save all show the text as before.
+        await Assert.That(page.Render()).IsEquivalentTo(render);
+        await Assert.That(document.RenderPage(0)).IsEquivalentTo(render);
+        await Assert.That(WithoutTrailer(document.Save())).IsEquivalentTo(saved);
+        await Assert.That(page.GetText()).IsEqualTo(text);
+    }
+
+    // Every save writes a fresh random file identifier into the trailer, so saves are compared
+    // up to it.
+    static byte[] WithoutTrailer(byte[] pdf)
+    {
+        var text = Encoding.Latin1.GetString(pdf);
+        return pdf[..text.LastIndexOf("trailer", StringComparison.Ordinal)];
+    }
+
     [Test]
     public async Task LazyLoadsLaterPages()
     {

@@ -290,6 +290,25 @@ public class Samples
     }
 
     [Test]
+    public async Task RenderHtmlVisibleText()
+    {
+        #region RenderHtmlVisibleText
+
+        using var document = PdfiumDocument.Load("multi-page.pdf");
+        // Visible text over the page image rendered without its text: images and drawings
+        // stay, and the text is sharp at any zoom
+        var html = document.RenderHtml(
+            new HtmlOptions
+            {
+                Text = HtmlTextMode.Visible
+            });
+
+        #endregion
+
+        await Assert.That(html).Contains("<img ");
+    }
+
+    [Test]
     public async Task RenderRegion()
     {
         #region RenderRegion

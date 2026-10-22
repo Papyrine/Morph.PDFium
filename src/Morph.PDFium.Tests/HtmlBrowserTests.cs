@@ -32,7 +32,13 @@ public class HtmlBrowserTests
     }
 
     public static IEnumerable<string> Pages() =>
-        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked"];
+        [.. TextPages(), "irs 1", "irs 2", "nasa 1"];
+
+    // Pages that are almost all text, so text-only HTML should look like them too. Page 1 of
+    // the NASA fact sheet is a third photo, and the IRS form is as much ruled lines, boxes and
+    // shading as text, all of which text-only HTML leaves out.
+    public static IEnumerable<string> TextPages() =>
+        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked", "nasa 2"];
 
     static (PdfiumDocument Document, int Page) Load(string name) =>
         name switch
@@ -44,6 +50,10 @@ public class HtmlBrowserTests
             "rotated" => (PdfiumDocument.Load(HtmlTests.RotatedPdf()), 0),
             "scaled" => (PdfiumDocument.Load(HtmlTests.ScaledTextPdf()), 0),
             "stroked" => (PdfiumDocument.Load(HtmlTests.StrokedTextPdf()), 0),
+            "irs 1" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 0),
+            "irs 2" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 1),
+            "nasa 1" => (PdfiumDocument.Load(ProjectFiles.nasa_training_for_space_pdf), 0),
+            "nasa 2" => (PdfiumDocument.Load(ProjectFiles.nasa_training_for_space_pdf), 1),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
         };
 
@@ -89,7 +99,7 @@ public class HtmlBrowserTests
     // each run should cover the same stretch of the page. Blurring both away from the shapes
     // of the glyphs and correlating where the ink lies checks that.
     [Test]
-    [MethodDataSource(nameof(Pages))]
+    [MethodDataSource(nameof(TextPages))]
     public async Task VisibleTextLiesWhereTheRenderedTextDoes(string name)
     {
         var (document, index) = Load(name);
@@ -99,6 +109,27 @@ public class HtmlBrowserTests
             new()
             {
                 IncludeImage = false,
+                Text = HtmlTextMode.Visible
+            });
+        var screenshot = await Screenshot(html, 1);
+        var comparison = await Compare(screenshot, document.RenderPage(index));
+        await Assert.That(comparison.SameSize).IsTrue();
+        await Assert.That(comparison.InkCorrelation).IsGreaterThan(0.85);
+    }
+
+    // Visible text over the image rendered without it: the images and drawings are PDFium's
+    // own pixels, and the text is in the browser's fonts, so the page should look like the
+    // render at least as closely as text-only HTML does.
+    [Test]
+    [MethodDataSource(nameof(Pages))]
+    public async Task VisibleTextOverTheBackgroundLooksLikeTheRender(string name)
+    {
+        var (document, index) = Load(name);
+        using var _ = document;
+        var html = document.RenderPageHtml(
+            index,
+            new()
+            {
                 Text = HtmlTextMode.Visible
             });
         var screenshot = await Screenshot(html, 1);
@@ -203,9 +234,10 @@ public class HtmlBrowserTests
     }
 
     // Every page of every PDF in the corpus folder. The overlay must match PDFium's render, as
-    // it does for the files above. Visible text is only reported, not checked: a page's images
-    // and drawings are missing from text-only HTML, so how well it correlates depends on how
-    // much of the page they make up.
+    // it does for the files above. Visible text, alone and over the text-free background, is
+    // only reported, not checked: text-only HTML lacks the page's images and drawings, and in
+    // both the browser's fonts differ from the PDF's, so how well they correlate depends on
+    // the page.
     [Test]
     [MethodDataSource(nameof(CorpusFiles), SkipIfEmpty = true)]
     public async Task Corpus(string path)
@@ -224,9 +256,16 @@ public class HtmlBrowserTests
                     IncludeImage = false,
                     Text = HtmlTextMode.Visible
                 });
+            var backgroundHtml = document.RenderPageHtml(
+                index,
+                new()
+                {
+                    Text = HtmlTextMode.Visible
+                });
             var overlay = await Compare(await Screenshot(overlayHtml, 1), render);
             var visible = await Compare(await Screenshot(visibleHtml, 1), render);
-            Console.WriteLine($"Page {index + 1}: overlay {overlay}; visible text ink correlation {visible.InkCorrelation:0.####}");
+            var background = await Compare(await Screenshot(backgroundHtml, 1), render);
+            Console.WriteLine($"Page {index + 1}: overlay {overlay}; ink correlation of visible text {visible.InkCorrelation:0.####}, over the background {background.InkCorrelation:0.####}");
             if (!overlay.SameSize || overlay.DifferingFraction >= 0.001)
             {
                 failures.Add($"page {index + 1}: {overlay}");
@@ -239,14 +278,17 @@ public class HtmlBrowserTests
                 await File.WriteAllBytesAsync(Path.Combine(output, $"{name}.png"), render);
                 await File.WriteAllTextAsync(Path.Combine(output, $"{name}-overlay.html"), Wrap(overlayHtml));
                 await File.WriteAllTextAsync(Path.Combine(output, $"{name}-visible.html"), Wrap(visibleHtml));
+                await File.WriteAllTextAsync(Path.Combine(output, $"{name}-background.html"), Wrap(backgroundHtml));
             }
         }
 
         await Assert.That(failures).IsEmpty();
     }
 
+    // The charset matters for the corpus output files, which a browser would otherwise read
+    // as Windows-1252.
     static string Wrap(string fragment) =>
-        $"<!DOCTYPE html><html><body style=\"margin:0\">{fragment}</body></html>";
+        $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body style=\"margin:0\">{fragment}</body></html>";
 
     static async Task<byte[]> Screenshot(string fragment, float deviceScale)
     {

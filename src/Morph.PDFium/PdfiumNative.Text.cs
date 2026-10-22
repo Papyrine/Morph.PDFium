@@ -76,6 +76,10 @@ static partial class PdfiumNative
     internal static partial int FPDFTextObj_GetTextRenderMode(IntPtr textObject);
 
     [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFTextObj_SetTextRenderMode(IntPtr textObject, int renderMode);
+
+    [LibraryImport(library)]
     internal static partial int FPDFText_GetCharIndexAtPos(IntPtr textPage, double x, double y, double xTolerance, double yTolerance);
 
     [LibraryImport(library)]

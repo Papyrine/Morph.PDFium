@@ -18,7 +18,9 @@ public sealed partial class PdfPage
         string? image = null;
         if (options.IncludeImage)
         {
-            var png = Render(options.Render);
+            // Visible text is drawn over the image, so the image leaves it out rather than show
+            // it twice.
+            var png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render) : Render(options.Render);
             image = options.ImageUrl?.Invoke(layout.Index, png) ?? $"data:image/png;base64,{Convert.ToBase64String(png)}";
         }
 
