@@ -55,20 +55,16 @@ public sealed partial class PdfPage
     }
 
     // Caller must hold PdfiumNative.Sync. Works out the map from page coordinates to display
-    // coordinates by asking FPDF_PageToDevice where three corners of the page box land, which
-    // accounts for the page's rotation and for a media or crop box away from the origin.
+    // coordinates by asking FPDF_PageToDevice where three points land, which accounts for the
+    // page's rotation and for a media or crop box away from the origin. Any three points not in
+    // a line do, so fixed ones are used rather than the page box, which a malformed page (a
+    // crop box outside its media box) can leave empty.
     DisplayMatrix ReadDisplayMatrix(IntPtr page, double width, double height)
     {
-        if (!PdfiumNative.FPDF_GetPageBoundingBox(page, out var box) ||
-            box.Right <= box.Left ||
-            box.Top <= box.Bottom)
-        {
-            throw new PdfiumException($"Failed to read bounding box of page {Index}");
-        }
-
         // FPDF_PageToDevice answers in whole device units, so ask about a device this many
         // times the page's size in points to keep precision below a point.
         const int unitsPerPoint = 1000;
+        const double span = 1000;
         var deviceWidth = (int) Math.Round(width * unitsPerPoint);
         var deviceHeight = (int) Math.Round(height * unitsPerPoint);
         (double X, double Y) ToDisplay(double x, double y)
@@ -81,17 +77,15 @@ public sealed partial class PdfPage
             return ((double) deviceX / unitsPerPoint, (double) deviceY / unitsPerPoint);
         }
 
-        var origin = ToDisplay(box.Left, box.Bottom);
-        var right = ToDisplay(box.Right, box.Bottom);
-        var top = ToDisplay(box.Left, box.Top);
-        var boxWidth = (double) box.Right - box.Left;
-        var boxHeight = (double) box.Top - box.Bottom;
+        var origin = ToDisplay(0, 0);
+        var right = ToDisplay(span, 0);
+        var top = ToDisplay(0, span);
         // A quarter turn's coefficients are exactly 0 or ±1; snap off the device rounding.
-        var a = Snap((right.X - origin.X) / boxWidth);
-        var b = Snap((right.Y - origin.Y) / boxWidth);
-        var c = Snap((top.X - origin.X) / boxHeight);
-        var d = Snap((top.Y - origin.Y) / boxHeight);
-        return new(a, b, c, d, origin.X - a * box.Left - c * box.Bottom, origin.Y - b * box.Left - d * box.Bottom);
+        var a = Snap((right.X - origin.X) / span);
+        var b = Snap((right.Y - origin.Y) / span);
+        var c = Snap((top.X - origin.X) / span);
+        var d = Snap((top.Y - origin.Y) / span);
+        return new(a, b, c, d, origin.X, origin.Y);
     }
 
     static double Snap(double value)
@@ -114,9 +108,14 @@ public sealed partial class PdfPage
         // Characters come in long stretches from one text object, which fixes their font and
         // color, so the style is worked out once per object. Null marks invisible text.
         var styles = new Dictionary<IntPtr, HtmlTextStyle?>();
+        // Whether the previous character was the first half of a surrogate pair that went into
+        // a run, so the second half belongs with it.
+        var highSurrogateAdded = false;
         for (var index = 0; index < count; index++)
         {
             var unicode = PdfiumNative.FPDFText_GetUnicode(text, index);
+            var afterHighSurrogate = highSurrogateAdded;
+            highSurrogateAdded = false;
             if (unicode is '\r' or '\n')
             {
                 builder.Flush();
@@ -135,9 +134,14 @@ public sealed partial class PdfPage
                 continue;
             }
 
+            // A second half whose first half was left out (drawn invisibly, say) goes too.
             if (unicode is >= 0xDC00 and <= 0xDFFF)
             {
-                builder.AppendLowSurrogate((char) unicode);
+                if (afterHighSurrogate)
+                {
+                    builder.AppendLowSurrogate((char) unicode);
+                }
+
                 continue;
             }
 
@@ -198,6 +202,7 @@ public sealed partial class PdfPage
             }
 
             builder.Add((int) unicode, x, y, Advance(box, a, b, c, d, fontSize), fontSize, a / length, b / length, style);
+            highSurrogateAdded = unicode is >= 0xD800 and <= 0xDBFF;
         }
 
         builder.Flush();

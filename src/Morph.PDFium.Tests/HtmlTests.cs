@@ -285,6 +285,36 @@ public class HtmlTests
         await Assert.That(page.GetText()).IsEqualTo(text);
     }
 
+    // Switching a text object's render mode marks it changed in PDFium, even when it is
+    // switched back, and the next content regeneration rewrites the page's content streams in
+    // full. So an edit after visible text HTML must save exactly as the same edit without it.
+    [Test]
+    public async Task BackgroundLeavesNoTraceForLaterEdits()
+    {
+        static byte[] EditAndSave(bool renderHtml)
+        {
+            using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+            using (var page = document.LoadPage(0))
+            {
+                if (renderHtml)
+                {
+                    page.RenderHtml(
+                        new()
+                        {
+                            Text = HtmlTextMode.Visible,
+                            ImageUrl = (_, _) => "page.png"
+                        });
+                }
+
+                page.AddRectangle(new(72, 72, 144, 144), new(255, 0, 0, 255));
+            }
+
+            return WithoutTrailer(document.Save());
+        }
+
+        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+    }
+
     // Every save writes a fresh random file identifier into the trailer, so saves are compared
     // up to it.
     static byte[] WithoutTrailer(byte[] pdf)
@@ -396,12 +426,23 @@ public class HtmlTests
             .WithMessage("page 6 failed");
     }
 
+    // Fails on the first page it is given, and counts what it is given after that.
     class FailingWriter : StringWriter
     {
+        public bool Failed { get; private set; }
+        public int WritesAfterFailing { get; private set; }
+
         public override void Write(string? value)
         {
-            if (value is not null && value.Contains("id=\"page-3\""))
+            if (Failed)
             {
+                WritesAfterFailing++;
+                return;
+            }
+
+            if (value is not null && value.StartsWith("<div class=\"pdf-page\""))
+            {
+                Failed = true;
                 throw new IOException("disk full");
             }
 
@@ -412,10 +453,14 @@ public class HtmlTests
     [Test]
     public async Task WriterFailureStopsTheRender()
     {
+        // Enough pages that others are still being rendered when the writer fails.
         using var document = BlankDocument(PdfiumDocument.PageWindow * 3);
-        await Assert.That(() => document.RenderHtml(new FailingWriter(), textOnly))
+        var writer = new FailingWriter();
+        await Assert.That(() => document.RenderHtml(writer, textOnly))
             .Throws<IOException>()
             .WithMessage("disk full");
+        // Once the writer has failed, no later page is written to it.
+        await Assert.That(writer.WritesAfterFailing).IsEqualTo(0);
     }
 
     [Test]
@@ -580,6 +625,29 @@ public class HtmlTests
                 </div>
 
                 """);
+    }
+
+    // A malformed page whose crop box lies outside its media box, so the two do not overlap.
+    // It still renders to PNG, so it must render to HTML too, rather than failing the document.
+    [Test]
+    public async Task CropBoxOutsideMediaBox()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /CropBox [700 900 800 1000] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 12 Tf 72 700 Td (Text) Tj ET"),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        await Assert.That(document.RenderPage(0).Length).IsGreaterThan(0);
+        var html = document.RenderHtml(
+            new()
+            {
+                ImageUrl = (_, _) => "page.png"
+            });
+        await Assert.That(html).Contains("<img src=\"page.png\"");
     }
 
     [Test]
@@ -766,6 +834,45 @@ public class HtmlTests
         var html = document.RenderPageHtml(0, textOnly);
         await Assert.That(html).Contains(">efficient</text>");
         await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task SkippedSurrogatePairLeavesNoHalf()
+    {
+        // The ToUnicode map reads "A" as U+1F600, beyond the Basic Multilingual Plane, which
+        // PDFium on Windows reports as two characters, the halves of a surrogate pair. Drawn
+        // invisibly after visible text, visible HTML leaves the pair out, and must leave out
+        // both halves rather than tack the second onto the visible text.
+        const string toUnicode =
+            """
+            /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+            /CMapName /Emoji def /CMapType 2 def
+            1 begincodespacerange <00> <FF> endcodespacerange
+            2 beginbfrange <20> <40> <0020> <42> <7E> <0042> endbfrange
+            1 beginbfchar <41> <D83DDE00> endbfchar
+            endcmap CMapName currentdict /CMap defineresource pop end end
+            """;
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 24 Tf 72 700 Td (Hello) Tj ET BT /F1 24 Tf 3 Tr 160 700 Td (A) Tj ET"),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(toUnicode)
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var visible = document.RenderPageHtml(0, textOnly);
+        await Assert.That(visible).Contains(">Hello</text>");
+        await Assert.That(visible).DoesNotContain("�");
+        // The overlay keeps invisible text, so it has the whole pair.
+        var overlay = document.RenderPageHtml(
+            0,
+            new()
+            {
+                ImageUrl = (_, _) => "page.png"
+            });
+        await Assert.That(overlay).Contains("\U0001F600");
     }
 
     [Test]
