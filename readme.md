@@ -152,7 +152,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L295-L308' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L314-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -215,7 +215,24 @@ File.WriteAllText(Path.Combine(directory, "document.html"), html);
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L242-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-`RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image and make the text visible. The text keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over.
+With `HtmlTextMode.Visible`, the HTML draws the text itself. It keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over. The page image is then rendered without its text, so images and drawings stay while the text is sharp at any zoom. The text-free images are also much smaller: at 150 DPI they were 3% of the full render's size for text pages, about 10% for forms and tables, and around half for photo-heavy pages. The trade-off is that the text is in the browser's fonts, so it looks less like the PDF than the default overlay.
+
+<!-- snippet: RenderHtmlVisibleText -->
+<a id='snippet-RenderHtmlVisibleText'></a>
+```cs
+using var document = PdfiumDocument.Load("multi-page.pdf");
+// Visible text over the page image rendered without its text: images and drawings
+// stay, and the text is sharp at any zoom
+var html = document.RenderHtml(
+    new HtmlOptions
+    {
+        Text = HtmlTextMode.Visible
+    });
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L295-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlVisibleText' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image as well.
 
 <!-- snippet: RenderTextHtml -->
 <a id='snippet-RenderTextHtml'></a>
@@ -328,7 +345,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L316-L328' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L335-L347' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -348,7 +365,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L337-L348' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L356-L367' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -361,7 +378,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L356-L362' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L375-L381' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

@@ -14,7 +14,9 @@ public sealed record HtmlOptions
 
     /// <summary>
     /// Whether each page includes its rendered image. Without it only the text (see
-    /// <see cref="Text"/>) and links remain, and the page's images and drawings are lost.
+    /// <see cref="Text"/>) and links remain, and the page's images and drawings are lost. With
+    /// <see cref="HtmlTextMode.Visible"/> text, the image is rendered without the page's text,
+    /// which the HTML draws over it instead.
     /// </summary>
     public bool IncludeImage { get; init; } = true;
 
