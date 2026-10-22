@@ -226,7 +226,7 @@ static class HtmlWriter
         if (outline.Count > 0)
         {
             builder.Append("<nav class=\"pdf-outline\" aria-label=\"Outline\">\n");
-            AppendOutline(builder, outline, options.PageIdPrefix);
+            AppendOutline(builder, outline, options);
             builder.Append("</nav>\n");
         }
 
@@ -246,13 +246,13 @@ static class HtmlWriter
         builder.Append("\">\n");
     }
 
-    static void AppendOutline(StringBuilder builder, IReadOnlyList<PdfBookmark> bookmarks, string pageIdPrefix)
+    static void AppendOutline(StringBuilder builder, IReadOnlyList<PdfBookmark> bookmarks, HtmlOptions options)
     {
         builder.Append("<ul>\n");
         foreach (var bookmark in bookmarks)
         {
             builder.Append("<li>");
-            var href = Href(bookmark.Destination, bookmark.Action, pageIdPrefix);
+            var href = Href(bookmark.Destination, bookmark.Action, options);
             if (href is null)
             {
                 builder.Append("<span>");
@@ -271,7 +271,7 @@ static class HtmlWriter
             if (bookmark.Children.Count > 0)
             {
                 builder.Append('\n');
-                AppendOutline(builder, bookmark.Children, pageIdPrefix);
+                AppendOutline(builder, bookmark.Children, options);
             }
 
             builder.Append("</li>\n");
@@ -286,13 +286,14 @@ static class HtmlWriter
     /// <summary>
     /// Where a link or bookmark should point: a page of this document by its id, a URL, or a
     /// file beside this one. Null for a target HTML cannot reach, or should not: a launch, a
-    /// file embedded in the PDF, or a URL of a scheme that is not on the safe list.
+    /// file embedded in the PDF, a URL of a scheme that is not on the safe list, or a page past
+    /// <see cref="HtmlOptions.MaxPages"/>.
     /// </summary>
-    public static string? Href(PdfDestination? destination, PdfAction? action, string pageIdPrefix)
+    public static string? Href(PdfDestination? destination, PdfAction? action, HtmlOptions options)
     {
         if (destination is { PageIndex: >= 0 } local)
         {
-            return "#" + PageId(pageIdPrefix, local.PageIndex);
+            return PageHref(local.PageIndex, options);
         }
 
         if (action is not { } target)
@@ -303,10 +304,20 @@ static class HtmlWriter
         return target.Type switch
         {
             PdfActionType.Uri => SafeUrl(target.Uri),
-            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => "#" + PageId(pageIdPrefix, goTo.PageIndex),
+            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => PageHref(goTo.PageIndex, options),
             PdfActionType.RemoteGoTo => SafeUrl(target.FilePath),
             _ => null
         };
+    }
+
+    static string? PageHref(int index, HtmlOptions options)
+    {
+        if (index >= options.MaxPages)
+        {
+            return null;
+        }
+
+        return "#" + PageId(options.PageIdPrefix, index);
     }
 
     static readonly string[] safeSchemes = ["http", "https", "mailto", "ftp", "tel"];

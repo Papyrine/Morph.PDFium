@@ -78,8 +78,23 @@ public sealed record HtmlOptions
     /// </summary>
     public bool LazyLoadImages { get; init; } = true;
 
+    /// <summary>
+    /// The most pages a whole document's HTML holds: only its first this many pages are
+    /// rendered, and the document itself is left as it is. Null, the default, renders every
+    /// page. Only the pages rendered get a printed page size, and a bookmark, or a link on a
+    /// page, that leads to a page past the limit is kept as plain text or left out, rather than
+    /// pointing at a page id the HTML does not have. A single page renders whatever this is,
+    /// though its links to pages past the limit are left out too.
+    /// </summary>
+    public int? MaxPages { get; init; }
+
     internal void Validate(string paramName)
     {
+        if (MaxPages is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(paramName, MaxPages, "MaxPages must be positive");
+        }
+
         if (Render is null)
         {
             throw new ArgumentException("Render must not be null", paramName);
