@@ -17,8 +17,9 @@ public sealed partial class PdfiumDocument
     /// <summary>
     /// Renders the whole document to a self-contained HTML document: its metadata in the head,
     /// its outline as a list of links (see <see cref="HtmlOptions.IncludeOutline"/>), then
-    /// every page as <see cref="PdfPage.RenderHtml"/> renders it, one under another, each on
-    /// a sheet of its own when printed. The pages are rendered in parallel, as
+    /// every page, or the first <see cref="HtmlOptions.MaxPages"/>, as
+    /// <see cref="PdfPage.RenderHtml"/> renders it, one under another, each on a sheet of its
+    /// own when printed. The pages are rendered in parallel, as
     /// <see cref="ProcessPages{T}(Func{PdfPage,T})"/> does.
     /// </summary>
     public string RenderHtml(HtmlOptions? options = null)
@@ -54,12 +55,13 @@ public sealed partial class PdfiumDocument
         }
 
         // Read without loading the pages, and as they are displayed, rotation included: the
-        // same sizes the pages render at.
-        var sizes = GetPageSizes();
+        // same sizes the pages render at. Only the pages rendered need one.
+        var count = Math.Min(PageCount, options.MaxPages ?? int.MaxValue);
+        var sizes = GetPageSizes().Take(count).ToList();
         HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, sizes, options);
         // Each page is written as soon as it and the pages before it are rendered, so a long
         // document is never held in memory whole.
-        ProcessPagesInOrder(_ => _.RenderHtmlPage(options, owned: true), _ => writer.Write(_));
+        ProcessPagesInOrder(count, _ => _.RenderHtmlPage(options, owned: true), _ => writer.Write(_));
         writer.Write(HtmlWriter.DocumentEnd);
     }
 }

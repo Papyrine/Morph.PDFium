@@ -168,6 +168,50 @@ public class HtmlTests
     }
 
     [Test]
+    public async Task MaxPages()
+    {
+        using var document = MixedSizeDocument();
+        var html = document.RenderHtml(
+            textOnly with
+            {
+                MaxPages = 2
+            });
+        await Assert.That(html).Contains("id=\"page-1\"");
+        await Assert.That(html).Contains("id=\"page-2\"");
+        await Assert.That(html).DoesNotContain("id=\"page-3\"");
+        await Assert.That(html).DoesNotContain("Page 3");
+        // Only the sizes of the pages rendered.
+        await Assert.That(html).Contains("@page pdf-612x792{size:612pt 792pt}\n@page pdf-842x595{size:842pt 595pt}\n</style>");
+        await Assert.That(document.PageCount).IsEqualTo(4);
+
+        // A limit past the end renders every page.
+        await Assert.That(
+                document.RenderHtml(
+                    textOnly with
+                    {
+                        MaxPages = 10
+                    }))
+            .IsEqualTo(document.RenderHtml(textOnly));
+    }
+
+    [Test]
+    public async Task MaxPagesDropsLinksToPagesLeftOut()
+    {
+        using var document = PdfiumDocument.Load(PdfWithLinks());
+        var html = document.RenderHtml(
+            textOnly with
+            {
+                MaxPages = 1
+            });
+        await Assert.That(html).DoesNotContain("id=\"page-2\"");
+        await Assert.That(html).DoesNotContain("#page-2");
+        // The bookmark to the second page stays in the outline, as text.
+        await Assert.That(html).Contains("<li><a href=\"#page-1\">Start &lt;here&gt;</a>\n<ul>\n<li><span>Second</span></li>");
+        // The page's other links stay.
+        await Assert.That(html).Contains("<a href=\"remote.pdf\">");
+    }
+
+    [Test]
     public async Task BackgroundLeavesOutTheText()
     {
         const string drawing = "1 0 0 rg 72 500 200 100 re f 0 0 1 RG 4 w 300 300 m 500 450 l S";
@@ -952,6 +996,7 @@ public class HtmlTests
         await Assert.That(() => document.RenderPageHtml(0, new() { PageIdPrefix = null! })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Text = (HtmlTextMode) 9 })).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = new() { Dpi = 0 } })).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderHtml(new HtmlOptions { MaxPages = 0 })).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPageHtml(1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderHtml((TextWriter) null!)).Throws<ArgumentNullException>();
     }

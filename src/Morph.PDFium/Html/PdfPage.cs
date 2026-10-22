@@ -58,7 +58,7 @@ public sealed partial class PdfPage
         IReadOnlyList<HtmlLink> links = [];
         if (options.IncludeLinks)
         {
-            links = ReadHtmlLinks(matrix, options.PageIdPrefix);
+            links = ReadHtmlLinks(matrix, options);
         }
 
         return new(Index, width, height, runs, links);
@@ -325,13 +325,13 @@ public sealed partial class PdfPage
         };
     }
 
-    List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, string pageIdPrefix)
+    List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, HtmlOptions options)
     {
         var links = new List<HtmlLink>();
         var hrefs = new HashSet<string>();
         foreach (var link in GetLinks())
         {
-            var href = HtmlWriter.Href(link.Destination, link.Action, pageIdPrefix);
+            var href = HtmlWriter.Href(link.Destination, link.Action, options);
             if (href is null || link.Rectangle.Width <= 0 || link.Rectangle.Height <= 0)
             {
                 continue;
