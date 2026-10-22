@@ -84,12 +84,6 @@ jobs:
           path: ${{ matrix.playwright }}
           key: playwright-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props') }}
 
-      # The browser comes from Playwright, but on Linux the libraries it links against come from
-      # apt, and the cache doesn't hold them.
-      - name: Install Chromium's system libraries
-        if: runner.os == 'Linux'
-        run: pwsh src/Morph.PDFium.Tests/bin/Release/net10.0/playwright.ps1 install-deps chromium
-
       - name: Test
         run: dotnet run --project src/Morph.PDFium.Tests --configuration Release --no-build -- --report-trx
 
