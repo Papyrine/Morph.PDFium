@@ -27,8 +27,13 @@ public class HtmlBrowserTests
     [After(HookType.Class)]
     public static async Task Close()
     {
-        await browser.DisposeAsync();
-        playwright.Dispose();
+        // Either may be missing when Launch failed; that failure is the one to see.
+        if (browser is not null)
+        {
+            await browser.DisposeAsync();
+        }
+
+        playwright?.Dispose();
     }
 
     public static IEnumerable<string> Pages() =>
@@ -328,9 +333,11 @@ public class HtmlBrowserTests
         await using var context = await browser.NewContextAsync(
             new()
             {
+                // Wider than any page likely to be compared, since the page shrinks to fit a
+                // narrower viewport (max-width:100%), and a shrunk page would not match its render.
                 ViewportSize = new()
                 {
-                    Width = 1400,
+                    Width = 4000,
                     Height = 1400
                 },
                 DeviceScaleFactor = deviceScale
