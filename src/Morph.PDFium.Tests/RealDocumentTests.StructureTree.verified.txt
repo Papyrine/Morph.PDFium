@@ -1,0 +1,59 @@
+﻿[
+  {
+    Type: P
+  },
+  {
+    Type: Figure,
+    AltText: NASA insignia.  
+  },
+  {
+    Type: P
+  },
+  {
+    Type: P
+  },
+  {
+    Type: Part,
+    Children: [
+      {
+        Type: H1
+      },
+      {
+        Type: P
+      }
+    ]
+  },
+  {
+    Type: Figure,
+    AltText:
+Photo:  Astronaut James M. Kelly, STS-114 pilot, assisted by divers, floats in a small life raft during an emergency egress training session in the Neutral Buoyancy Laboratory.  
+Photo caption:  Astronaut James M. Kelly, STS-114 pilot, assisted by divers, floats in a small life raft during an emergency egress training session in the Neutral Buoyancy Laboratory.  
+  },
+  {
+    Type: Part,
+    Children: [
+      {
+        Type: P
+      },
+      {
+        Type: P,
+        Children: [
+          {
+            Type: P
+          },
+          {
+            Type: Part,
+            Children: [
+              {
+                Type: P
+              },
+              {
+                Type: P
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

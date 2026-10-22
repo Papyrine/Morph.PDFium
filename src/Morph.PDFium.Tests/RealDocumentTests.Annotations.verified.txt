@@ -1,0 +1,151 @@
+﻿[
+  {
+    Type: Widget,
+    Rectangle: {
+      Left: 228.8000030517578,
+      Bottom: 732.5020141601562,
+      Right: 316.79998779296875,
+      Top: 743.5009765625,
+      Width: 87.99998474121094,
+      Height: 10.99896240234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 1,
+    Type: Widget,
+    Rectangle: {
+      Left: 365.6000061035156,
+      Bottom: 732.5020141601562,
+      Right: 453.6000061035156,
+      Top: 743.5009765625,
+      Width: 88.0,
+      Height: 10.99896240234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 2,
+    Type: Widget,
+    Rectangle: {
+      Left: 468.6000061035156,
+      Bottom: 732.5020141601562,
+      Right: 485.6000061035156,
+      Top: 743.5009765625,
+      Width: 17.0,
+      Height: 10.99896240234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 3,
+    Type: Widget,
+    Rectangle: {
+      Left: 36.0,
+      Bottom: 722.0,
+      Right: 44.0,
+      Top: 730.0,
+      Width: 8.0,
+      Height: 8.0
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 4,
+    Type: Widget,
+    Rectangle: {
+      Left: 155.1999969482422,
+      Bottom: 722.0,
+      Right: 163.1999969482422,
+      Top: 730.0,
+      Width: 8.0,
+      Height: 8.0
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 5,
+    Type: Widget,
+    Rectangle: {
+      Left: 209.8000030517578,
+      Bottom: 720.5,
+      Right: 370.79998779296875,
+      Top: 731.4990234375,
+      Width: 160.99998474121094,
+      Height: 10.9990234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 6,
+    Type: Widget,
+    Rectangle: {
+      Left: 374.79998779296875,
+      Bottom: 722.0,
+      Right: 382.79998779296875,
+      Top: 730.0,
+      Width: 8.0,
+      Height: 8.0
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 7,
+    Type: Widget,
+    Rectangle: {
+      Left: 417.6000061035156,
+      Bottom: 720.5,
+      Right: 432.0,
+      Top: 731.4990234375,
+      Width: 14.399993896484375,
+      Height: 10.9990234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 8,
+    Type: Widget,
+    Rectangle: {
+      Left: 439.20001220703125,
+      Bottom: 720.5,
+      Right: 453.6000061035156,
+      Top: 731.4990234375,
+      Width: 14.399993896484375,
+      Height: 10.9990234375
+    },
+    Color: {
+      A: 255
+    }
+  },
+  {
+    Index: 9,
+    Type: Widget,
+    Rectangle: {
+      Left: 460.79998779296875,
+      Bottom: 720.5,
+      Right: 482.3999938964844,
+      Top: 731.4990234375,
+      Width: 21.600006103515625,
+      Height: 10.9990234375
+    },
+    Color: {
+      A: 255
+    }
+  }
+]

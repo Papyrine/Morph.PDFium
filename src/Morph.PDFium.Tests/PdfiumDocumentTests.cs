@@ -269,6 +269,9 @@ public class PdfiumDocumentTests
         for (var iteration = 0; iteration < 20; iteration++)
         {
             var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+            // Disposed only once the reader is calling in, so the two really overlap rather
+            // than the reader starting after Dispose has finished.
+            var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var reader = Task.Run(() =>
             {
                 try
@@ -276,6 +279,7 @@ public class PdfiumDocumentTests
                     while (true)
                     {
                         document.GetPageSize(0);
+                        reading.TrySetResult();
                     }
                 }
                 catch (ObjectDisposedException)
@@ -283,6 +287,7 @@ public class PdfiumDocumentTests
                     // The only acceptable way for a call to lose the race with Dispose.
                 }
             });
+            await reading.Task;
             document.Dispose();
             await reader;
         }
