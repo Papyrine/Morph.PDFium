@@ -329,7 +329,7 @@ static class HtmlWriter
         {
             PdfActionType.Uri => SafeUrl(target.Uri, options),
             PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => PageHref(goTo.PageIndex, options),
-            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath, options),
+            PdfActionType.RemoteGoTo => RemoteFileUrl(target.FilePath, options),
             _ => null
         };
     }
@@ -342,6 +342,42 @@ static class HtmlWriter
         }
 
         return "#" + PageId(options.PageIdPrefix, index);
+    }
+
+    /// <summary>
+    /// The file a remote go-to opens, as a link relative to the HTML, or null. PDFium decodes the
+    /// PDF's file specification into a path for the OS it runs on: on Windows "/" becomes "\",
+    /// and an absolute "/volume/path" becomes "\\volume\path" or "c:\path"; on macOS "/" becomes
+    /// ":"; elsewhere it is left as the PDF wrote it. So the separators are turned back into "/",
+    /// making the HTML the same whichever OS wrote it, and an absolute path, which names a
+    /// volume, a drive or a host rather than a file beside the PDF, is never a link. A URL, which
+    /// a /FS /URL specification gives as written, is told by its "://" and left to
+    /// <see cref="SafeUrl"/>.
+    /// </summary>
+    static string? RemoteFileUrl(string? path, HtmlOptions options)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        if (!path.Contains("://"))
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                path = path.Replace(':', '/');
+            }
+
+            path = path.Replace('\\', '/');
+        }
+
+        var url = SafeUrl(path, options);
+        if (url is null || url.StartsWith('/'))
+        {
+            return null;
+        }
+
+        return url;
     }
 
     /// <summary>

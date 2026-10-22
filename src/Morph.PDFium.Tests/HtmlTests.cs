@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+
 public class HtmlTests
 {
     static readonly HtmlOptions textOnly = new()
@@ -655,11 +658,37 @@ public class HtmlTests
             [23] = "<< /Title (Second) /Parent 21 0 R /Dest [6 0 R /Fit] >>"
         });
 
+    // Some numbers hang on the shapes of glyphs: how far their ink reaches. A font the PDF doesn't
+    // embed is drawn with one from the machine, or PDFium's built-in ones, so those numbers move
+    // by a fraction of a point between Windows, macOS and Linux. Each number the pattern's groups
+    // match is checked to be within half a point of its expected value, and shown as "~" in the
+    // HTML returned for the snapshot.
+    static async Task<string> CheckNear(string html, string pattern, params double[] expected)
+    {
+        var match = Regex.Match(html, pattern);
+        await Assert.That(match.Success).IsTrue();
+        var builder = new StringBuilder(html);
+        // Last first, so the earlier groups' positions still hold.
+        for (var index = expected.Length; index > 0; index--)
+        {
+            var group = match.Groups[index];
+            await Assert.That(double.Parse(group.Value, CultureInfo.InvariantCulture)).IsEqualTo(expected[index - 1]).Within(0.5);
+            builder.Remove(group.Index, group.Length).Insert(group.Index, '~');
+        }
+
+        return builder.ToString();
+    }
+
+    // PDFium bounds the URL it finds in PdfWithLinks' text by the glyphs drawn for it, in
+    // Helvetica, which the PDF doesn't embed.
+    static Task<string> CheckTextLinkBox(string html) =>
+        CheckNear(html, """href="https://example.com/text"><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)""", 97.5, 83.2, 129.1, 11.2);
+
     [Test]
     public async Task Links()
     {
         using var document = PdfiumDocument.Load(PdfWithLinks());
-        var html = document.RenderPageHtml(0, textOnly);
+        var html = await CheckTextLinkBox(document.RenderPageHtml(0, textOnly));
         // Both links to the second page, the URL, the other file and the URL found in the text.
         await Verify(html, "html")
             .Snapshot(
@@ -671,7 +700,7 @@ public class HtmlTests
                 <a href="#page-2"><rect x="72" y="202" width="228" height="20" fill="transparent"/></a>
                 <a href="https://example.com/a?b=c&amp;d=&quot;e&quot;"><rect x="72" y="232" width="228" height="20" fill="transparent"/></a>
                 <a href="remote.pdf"><rect x="72" y="262" width="228" height="20" fill="transparent"/></a>
-                <a href="https://example.com/text"><rect x="97.48" y="83.26" width="129.18" height="11.11" fill="transparent"/></a>
+                <a href="https://example.com/text"><rect x="~" y="~" width="~" height="~" fill="transparent"/></a>
                 </svg>
                 </div>
 
@@ -733,7 +762,8 @@ public class HtmlTests
     // browser resolves "//evil.example/x" against the page's scheme, and on Windows a
     // "\\host\share" path from a file:// page is an SMB request that can leak credentials. So
     // they are not relative links, whatever the settings. A file link whose PDF path names a
-    // volume, "/fileserver.example/share/report.pdf", becomes one of those on Windows.
+    // volume, "/fileserver.example/share/report.pdf", becomes one of those on Windows, and
+    // isn't a link on any OS.
     [Test]
     public async Task LinksToOtherHostsAreNotRelative()
     {
@@ -767,6 +797,37 @@ public class HtmlTests
             await Assert.That(html).Contains("<a href=\"docs/other.pdf\">");
             await Assert.That(html).Contains("<a href=\"/same/host.pdf\">");
         }
+    }
+
+    // PDFium hands a link's file back as a path for the OS it runs on ("docs\other.pdf" on
+    // Windows, "docs:other.pdf" on macOS), but the HTML is read in a browser, whatever OS wrote
+    // it. So a relative file is linked with "/" on every OS, and an absolute one, naming a drive
+    // or a volume, isn't linked on any. A URL file specification is a URL as it stands.
+    [Test]
+    public async Task RemoteFileLinksAreTheSameOnEveryOS()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R 11 0 R 12 0 R 13 0 R] >>",
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [72 700 300 720] /A << /S /GoToR /F (docs/other.pdf) /D [0 /Fit] >> >>",
+            [11] = "<< /Type /Annot /Subtype /Link /Rect [72 670 300 690] /A << /S /GoToR /F (/c/docs/drive.pdf) /D [0 /Fit] >> >>",
+            [12] = "<< /Type /Annot /Subtype /Link /Rect [72 640 300 660] /A << /S /GoToR /F (//root.pdf) /D [0 /Fit] >> >>",
+            [13] = "<< /Type /Annot /Subtype /Link /Rect [72 610 300 630] /A << /S /GoToR /F << /FS /URL /F (https://example.com/remote.pdf) >> /D [0 /Fit] >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        await Verify(document.RenderPageHtml(0, textOnly), "html")
+            .Snapshot(
+                """
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
+                <a href="docs/other.pdf"><rect x="72" y="72" width="228" height="20" fill="transparent"/></a>
+                <a href="https://example.com/remote.pdf"><rect x="72" y="162" width="228" height="20" fill="transparent"/></a>
+                </svg>
+                </div>
+
+                """);
     }
 
     // A link may name any two opposite corners of its rectangle, so these are reversed.
@@ -828,7 +889,7 @@ public class HtmlTests
     {
         using var document = PdfiumDocument.Load(PdfWithLinks());
         await Assert.That(document.GetLanguage()).IsEqualTo("en-GB");
-        var html = document.RenderHtml(textOnly);
+        var html = await CheckTextLinkBox(document.RenderHtml(textOnly));
         await Verify(html, "html");
 
         var withoutOutline = document.RenderHtml(
@@ -953,14 +1014,19 @@ public class HtmlTests
             [7] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"
         });
         using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        // A run ends where its last glyph's ink does, when that overhangs its advance, as bold
+        // "f" and oblique "s" do.
+        html = await CheckNear(html, """textLength="([\d.]+)"[^>]*>Red bold serif<""", 72.8);
+        html = await CheckNear(html, """textLength="([\d.]+)"[^>]*>Blue italic sans<""", 80.2);
         // Text drawn invisibly is left out of visible text.
-        await Verify(document.RenderPageHtml(0, textOnly), "html")
+        await Verify(html, "html")
             .Snapshot(
                 """
                 <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
-                <text x="72" y="92" font-size="12" textLength="72.89" lengthAdjust="spacingAndGlyphs" font-family="'Times', serif" font-weight="700" fill="#ff0000">Red bold serif</text>
-                <text x="72" y="112" font-size="12" textLength="80.04" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" font-style="italic" fill="#0000ff">Blue italic sans</text>
+                <text x="72" y="92" font-size="12" textLength="~" lengthAdjust="spacingAndGlyphs" font-family="'Times', serif" font-weight="700" fill="#ff0000">Red bold serif</text>
+                <text x="72" y="112" font-size="12" textLength="~" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" font-style="italic" fill="#0000ff">Blue italic sans</text>
                 <text x="72" y="132" font-size="12" textLength="36" lengthAdjust="spacingAndGlyphs" font-family="'Courier', monospace">Fixed</text>
                 </svg>
                 </div>
