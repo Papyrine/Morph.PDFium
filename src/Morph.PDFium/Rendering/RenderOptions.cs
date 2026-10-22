@@ -31,6 +31,31 @@ public sealed record RenderOptions
     /// <summary>The background color filled before rendering. Defaults to opaque white.</summary>
     public PdfColor Background { get; init; } = new(255, 255, 255, 255);
 
+    /// <summary>
+    /// The zlib level the PNG is deflated at, 0 (stored) to 9 (smallest). Lower levels encode
+    /// faster for a somewhat larger file: on text pages 4 is about a fifth faster than 6 for
+    /// files a few percent larger. Defaults to <see cref="DefaultCompressionLevel"/> as it was
+    /// when these options were created.
+    /// </summary>
+    public int CompressionLevel { get; init; } = DefaultCompressionLevel;
+
+    static int defaultCompressionLevel = 6;
+
+    /// <summary>
+    /// The compression level for every render that is not given its own: those made with
+    /// default <see cref="RenderOptions"/>, and the overloads that take only a dpi. 6 is zlib's
+    /// default, what <see cref="System.IO.Compression.CompressionLevel.Optimal"/> gives.
+    /// </summary>
+    public static int DefaultCompressionLevel
+    {
+        get => defaultCompressionLevel;
+        set
+        {
+            ValidateCompressionLevel(value, nameof(value));
+            defaultCompressionLevel = value;
+        }
+    }
+
     // Shared by every render entry point. paramName is the caller's parameter: the options, or
     // a bare dpi.
     internal static void ValidateDpi(double dpi, string paramName)
@@ -39,6 +64,20 @@ public sealed record RenderOptions
         {
             throw new ArgumentOutOfRangeException(paramName, dpi, "dpi must be positive and finite");
         }
+    }
+
+    static void ValidateCompressionLevel(int level, string paramName)
+    {
+        if (level is < 0 or > 9)
+        {
+            throw new ArgumentOutOfRangeException(paramName, level, "compression level must be between 0 and 9");
+        }
+    }
+
+    internal void Validate(string paramName)
+    {
+        ValidateDpi(Dpi, paramName);
+        ValidateCompressionLevel(CompressionLevel, paramName);
     }
 
     internal int ToFlags()

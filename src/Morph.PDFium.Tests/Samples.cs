@@ -157,6 +157,37 @@ public class Samples
         await Assert.That(png.Length).IsGreaterThan(0);
     }
 
+    // Sets the process-wide default, so nothing else may render while it runs.
+    [Test]
+    [NotInParallel]
+    public async Task CompressionLevel()
+    {
+        try
+        {
+            #region CompressionLevel
+
+            using var document = PdfiumDocument.Load("sample.pdf");
+            // For one render: zlib level 0 (stored) to 9 (smallest); 6 is the default
+            var png = document.RenderPage(
+                0,
+                new RenderOptions
+                {
+                    CompressionLevel = 4
+                });
+
+            // For every render not given a level of its own
+            RenderOptions.DefaultCompressionLevel = 4;
+
+            #endregion
+
+            await Assert.That(png.Length).IsGreaterThan(0);
+        }
+        finally
+        {
+            RenderOptions.DefaultCompressionLevel = 6;
+        }
+    }
+
     [Test]
     public async Task RenderOpenPage()
     {

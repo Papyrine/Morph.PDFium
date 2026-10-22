@@ -12,7 +12,7 @@ public class PngEncoderTests
     public async Task RepeatingGrayRowsUseGrayscaleAndNoFilter()
     {
         var rgba = RepeatingRows();
-        var png = PngEncoder.Encode(rgba, width, height, 96);
+        var png = PngEncoder.Encode(rgba, width, height, 96, 6);
         var (colorType, filters, pixels) = Decode(png);
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
@@ -24,7 +24,7 @@ public class PngEncoderTests
     public async Task DriftingGrayRowsUseGrayscaleAndUpFilter()
     {
         var rgba = DriftingRows(color: false);
-        var png = PngEncoder.Encode(rgba, width, height, 96);
+        var png = PngEncoder.Encode(rgba, width, height, 96, 6);
         var (colorType, filters, pixels) = Decode(png);
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
@@ -36,7 +36,7 @@ public class PngEncoderTests
     public async Task ColorImageKeepsEveryChannel()
     {
         var rgba = DriftingRows(color: true);
-        var png = PngEncoder.Encode(rgba, width, height, 96);
+        var png = PngEncoder.Encode(rgba, width, height, 96, 6);
         var (colorType, filters, pixels) = Decode(png);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
@@ -53,11 +53,31 @@ public class PngEncoderTests
             rgba[index] = 128;
         }
 
-        var png = PngEncoder.Encode(rgba, width, height, 96);
+        var png = PngEncoder.Encode(rgba, width, height, 96, 6);
         var (colorType, _, pixels) = Decode(png);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
         await Assert.That(pixels).IsEquivalentTo(rgba);
+    }
+
+    [Test]
+    public async Task EveryCompressionLevelRoundTrips()
+    {
+        var rgba = DriftingRows(color: true);
+        var sizes = new List<int>();
+        foreach (var level in new[] { 0, 1, 4, 9 })
+        {
+            var png = PngEncoder.Encode(rgba, width, height, 96, level);
+            var (_, _, pixels) = Decode(png);
+            await Assert.That(pixels).IsEquivalentTo(rgba);
+            sizes.Add(png.Length);
+        }
+
+        // Stored (level 0) is larger than the raw image; higher levels never come out larger.
+        await Assert.That(sizes[0]).IsGreaterThan(rgba.Length);
+        await Assert.That(sizes[1]).IsLessThan(sizes[0]);
+        await Assert.That(sizes[2]).IsLessThanOrEqualTo(sizes[1]);
+        await Assert.That(sizes[3]).IsLessThanOrEqualTo(sizes[2]);
     }
 
     // Gray rows that repeat exactly two rows back, as the glyph shapes of a text page recur
