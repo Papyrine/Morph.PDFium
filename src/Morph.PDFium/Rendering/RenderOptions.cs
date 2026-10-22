@@ -39,8 +39,6 @@ public sealed record RenderOptions
     /// </summary>
     public int CompressionLevel { get; init; } = DefaultCompressionLevel;
 
-    static int defaultCompressionLevel = 6;
-
     /// <summary>
     /// The compression level for every render that is not given its own: those made with
     /// default <see cref="RenderOptions"/>, and the overloads that take only a dpi. 6 is zlib's
@@ -48,13 +46,13 @@ public sealed record RenderOptions
     /// </summary>
     public static int DefaultCompressionLevel
     {
-        get => defaultCompressionLevel;
+        get;
         set
         {
             ValidateCompressionLevel(value, nameof(value));
-            defaultCompressionLevel = value;
+            field = value;
         }
-    }
+    } = 6;
 
     // Shared by every render entry point. paramName is the caller's parameter: the options, or
     // a bare dpi.

@@ -16,7 +16,7 @@ public sealed partial class PdfiumDocument :
     int pageCount;
     // Pages and form sessions still open on this document. PDFium requires them to be
     // closed before the document, so Dispose closes whatever the caller left open.
-    readonly List<IDisposable> children = [];
+    List<IDisposable> children = [];
 
     PdfiumDocument(GCHandle pinnedBytes, IntPtr handle, int pageCount)
     {
@@ -225,7 +225,7 @@ public sealed partial class PdfiumDocument :
     // null the whole page is rendered; otherwise only that rectangle, given in page coordinates.
     // The pixels come back in a pooled buffer, so the caller disposes the result once it is
     // done with them.
-    internal RenderedPixels RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = default)
+    internal RenderedPixels RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = 0)
     {
         lock (PdfiumNative.Sync)
         {

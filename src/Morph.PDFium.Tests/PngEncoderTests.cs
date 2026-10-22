@@ -1,6 +1,3 @@
-using System.IO.Compression;
-using System.Text;
-
 // Exercises the encoder on synthetic images: the format it picks for each, and that the pixels
 // survive a round trip through the zlib stream it writes.
 public class PngEncoderTests

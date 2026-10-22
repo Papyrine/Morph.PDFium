@@ -9,8 +9,8 @@ static class PngEncoder
     static readonly uint[] crcTables = BuildCrcTables();
 
     // PNG scanline filter types.
-    const byte None = 0;
-    const byte Up = 2;
+    const byte none = 0;
+    const byte up = 2;
     // How many rows the filter trial compresses.
     const int sampleRows = 64;
 
@@ -255,21 +255,21 @@ static class PngEncoder
             {
                 var row = scanlines.Slice(y * stride, stride);
                 var previous = y == 0 ? zeros : scanlines.Slice((y - 1) * stride, stride);
-                filtered[0] = None;
-                Filter(None, row, previous, filtered.AsSpan(1));
+                filtered[0] = PngEncoder.none;
+                Filter(PngEncoder.none, row, previous, filtered.AsSpan(1));
                 none.Write(filtered);
-                filtered[0] = Up;
-                Filter(Up, row, previous, filtered.AsSpan(1));
+                filtered[0] = PngEncoder.up;
+                Filter(PngEncoder.up, row, previous, filtered.AsSpan(1));
                 up.Write(filtered);
             }
         }
 
         if (upSize.Length < noneSize.Length)
         {
-            return Up;
+            return up;
         }
 
-        return None;
+        return none;
     }
 
     static int ScanlineLength(int width, bool gray)
@@ -284,7 +284,7 @@ static class PngEncoder
 
     static void Filter(byte filter, ReadOnlySpan<byte> row, ReadOnlySpan<byte> previous, Span<byte> destination)
     {
-        if (filter == Up)
+        if (filter == up)
         {
             Subtract(row, previous, destination);
             return;
@@ -417,7 +417,7 @@ static class PngEncoder
             Write(source.AsSpan(offset, count));
 
         public override void WriteByte(byte value) =>
-            Write(new ReadOnlySpan<byte>(in value));
+            Write(new(in value));
 
         protected override void Dispose(bool disposing)
         {
