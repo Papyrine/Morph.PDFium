@@ -191,6 +191,8 @@ Images are embedded as data URIs by default, which keeps the HTML self-contained
 
 For a long document, pass a `TextWriter` (a `StreamWriter` over a file, say) to `RenderHtml`. Each page is written as soon as it and the pages before it are done, so only a few pages are in memory at once. Converting 1,000 pages at 150 DPI this way peaks at about half the memory of building the whole string.
 
+`HtmlOptions.MaxPages` renders only a document's first pages, without changing the document. A bookmark to a page left out stays in the outline as plain text, links to those pages are dropped, and only the pages rendered get a printed page size.
+
 <!-- snippet: RenderHtmlOptions -->
 <a id='snippet-RenderHtmlOptions'></a>
 ```cs
