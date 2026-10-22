@@ -113,22 +113,22 @@ var png = document.RenderPage(
 
 ### PNG compression level
 
-Pages are deflated at zlib level 6 by default (what `CompressionLevel.Optimal` gives). Lower levels encode faster for a somewhat larger file: on text pages level 4 is about 20% faster for files about 3% larger. Set it per render, or globally for the renders that take no options.
+Pages are deflated at `PngCompressionLevel.Optimal` (zlib level 6) by default. Lower levels encode faster for a somewhat larger file: on text pages `Level4` is about 20% faster for files about 3% larger. Set it per render, or globally for the renders that take no options.
 
 <!-- snippet: CompressionLevel -->
 <a id='snippet-CompressionLevel'></a>
 ```cs
 using var document = PdfiumDocument.Load("sample.pdf");
-// For one render: zlib level 0 (stored) to 9 (smallest); 6 is the default
+// For one render; Optimal (zlib level 6) is the default
 var png = document.RenderPage(
     0,
     new RenderOptions
     {
-        CompressionLevel = 4
+        CompressionLevel = PngCompressionLevel.Level4
     });
 
 // For every render not given a level of its own
-RenderOptions.DefaultCompressionLevel = 4;
+RenderOptions.DefaultCompressionLevel = PngCompressionLevel.Level4;
 ```
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-CompressionLevel' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

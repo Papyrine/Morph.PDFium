@@ -167,16 +167,16 @@ public class Samples
             #region CompressionLevel
 
             using var document = PdfiumDocument.Load("sample.pdf");
-            // For one render: zlib level 0 (stored) to 9 (smallest); 6 is the default
+            // For one render; Optimal (zlib level 6) is the default
             var png = document.RenderPage(
                 0,
                 new RenderOptions
                 {
-                    CompressionLevel = 4
+                    CompressionLevel = PngCompressionLevel.Level4
                 });
 
             // For every render not given a level of its own
-            RenderOptions.DefaultCompressionLevel = 4;
+            RenderOptions.DefaultCompressionLevel = PngCompressionLevel.Level4;
 
             #endregion
 
@@ -184,7 +184,7 @@ public class Samples
         }
         finally
         {
-            RenderOptions.DefaultCompressionLevel = 6;
+            RenderOptions.DefaultCompressionLevel = PngCompressionLevel.Optimal;
         }
     }
 

@@ -203,7 +203,7 @@ public sealed partial class PdfiumDocument :
 
         using var rendered = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
         // Encode outside the PDFium lock: it is pure managed work
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi, RenderOptions.DefaultCompressionLevel);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi, (int) RenderOptions.DefaultCompressionLevel);
     }
 
     /// <summary>

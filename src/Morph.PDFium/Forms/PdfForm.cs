@@ -159,7 +159,7 @@ public sealed class PdfForm :
 
         using (rendered)
         {
-            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, options.CompressionLevel);
+            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
         }
     }
 

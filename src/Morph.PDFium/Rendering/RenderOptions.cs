@@ -32,19 +32,19 @@ public sealed record RenderOptions
     public PdfColor Background { get; init; } = new(255, 255, 255, 255);
 
     /// <summary>
-    /// The zlib level the PNG is deflated at, 0 (stored) to 9 (smallest). Lower levels encode
-    /// faster for a somewhat larger file: on text pages 4 is about a fifth faster than 6 for
-    /// files a few percent larger. Defaults to <see cref="DefaultCompressionLevel"/> as it was
-    /// when these options were created.
+    /// The zlib level the PNG is deflated at. Lower levels encode faster for a somewhat larger
+    /// file: on text pages <see cref="PngCompressionLevel.Level4"/> is about a fifth faster than
+    /// <see cref="PngCompressionLevel.Optimal"/> for files a few percent larger. Defaults to
+    /// <see cref="DefaultCompressionLevel"/> as it was when these options were created.
     /// </summary>
-    public int CompressionLevel { get; init; } = DefaultCompressionLevel;
+    public PngCompressionLevel CompressionLevel { get; init; } = DefaultCompressionLevel;
 
     /// <summary>
     /// The compression level for every render that is not given its own: those made with
-    /// default <see cref="RenderOptions"/>, and the overloads that take only a dpi. 6 is zlib's
-    /// default, what <see cref="System.IO.Compression.CompressionLevel.Optimal"/> gives.
+    /// default <see cref="RenderOptions"/>, and the overloads that take only a dpi. Starts as
+    /// <see cref="PngCompressionLevel.Optimal"/>.
     /// </summary>
-    public static int DefaultCompressionLevel
+    public static PngCompressionLevel DefaultCompressionLevel
     {
         get;
         set
@@ -52,7 +52,7 @@ public sealed record RenderOptions
             ValidateCompressionLevel(value, nameof(value));
             field = value;
         }
-    } = 6;
+    } = PngCompressionLevel.Optimal;
 
     // Shared by every render entry point. paramName is the caller's parameter: the options, or
     // a bare dpi.
@@ -64,11 +64,12 @@ public sealed record RenderOptions
         }
     }
 
-    static void ValidateCompressionLevel(int level, string paramName)
+    // The enum does not stop a caller casting an arbitrary number to it.
+    static void ValidateCompressionLevel(PngCompressionLevel level, string paramName)
     {
-        if (level is < 0 or > 9)
+        if ((int) level is < 0 or > 9)
         {
-            throw new ArgumentOutOfRangeException(paramName, level, "compression level must be between 0 and 9");
+            throw new ArgumentOutOfRangeException(paramName, level, "compression level must be between NoCompression (0) and SmallestSize (9)");
         }
     }
 
