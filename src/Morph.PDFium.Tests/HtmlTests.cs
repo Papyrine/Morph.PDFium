@@ -100,6 +100,131 @@ public class HtmlTests
     }
 
     [Test]
+    public async Task LazyLoadsLaterPages()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        var options = new HtmlOptions
+        {
+            ImageUrl = (index, _) => $"{index + 1}.png"
+        };
+        var html = document.RenderHtml(options);
+        // The first page is on screen at once, so it loads straight away.
+        await Assert.That(html).Contains("<img src=\"1.png\" alt=\"\" draggable");
+        await Assert.That(html).Contains("<img src=\"2.png\" alt=\"\" loading=\"lazy\" decoding=\"async\" draggable");
+        await Assert.That(html).Contains("<img src=\"4.png\" alt=\"\" loading=\"lazy\" decoding=\"async\" draggable");
+
+        var eager = document.RenderHtml(
+            options with
+            {
+                LazyLoadImages = false
+            });
+        await Assert.That(eager).DoesNotContain("loading=");
+    }
+
+    // Records, as each page is written, how many pages have been rendered but not yet written.
+    class PageRecorder(StrongBox<int> rendered) : StringWriter
+    {
+        public List<int> Order { get; } = [];
+        public int MostWaiting { get; private set; }
+
+        public override void Write(string? value)
+        {
+            if (value is not null && value.StartsWith("<div class=\"pdf-page\" id=\"page-"))
+            {
+                var start = "<div class=\"pdf-page\" id=\"page-".Length;
+                Order.Add(int.Parse(value[start..value.IndexOf('"', start)]));
+                MostWaiting = Math.Max(MostWaiting, Volatile.Read(ref rendered.Value) - Order.Count);
+            }
+
+            base.Write(value);
+        }
+    }
+
+    static PdfiumDocument BlankDocument(int pages)
+    {
+        var document = PdfiumDocument.CreateNew();
+        for (var index = 0; index < pages; index++)
+        {
+            document.NewPage(index, 200, 100).Dispose();
+        }
+
+        return document;
+    }
+
+    [Test]
+    public async Task WritesPagesInOrderAsTheyAreRendered()
+    {
+        // Comfortably more pages than the workers may get ahead by.
+        var count = PdfiumDocument.PageWindow * 3 + 5;
+        using var document = BlankDocument(count);
+        var rendered = new StrongBox<int>();
+        var recorder = new PageRecorder(rendered);
+        document.RenderHtml(
+            recorder,
+            new()
+            {
+                ImageUrl = (index, _) =>
+                {
+                    Interlocked.Increment(ref rendered.Value);
+                    return $"{index + 1}.png";
+                }
+            });
+        await Assert.That(recorder.Order.SequenceEqual(Enumerable.Range(1, count))).IsTrue();
+        // Never more than the window rendered and waiting to be written: the document is not
+        // held whole.
+        await Assert.That(recorder.MostWaiting).IsLessThanOrEqualTo(PdfiumDocument.PageWindow);
+        await Assert.That(recorder.ToString()).IsEqualTo(
+            document.RenderHtml(
+                new()
+                {
+                    ImageUrl = (index, _) => $"{index + 1}.png"
+                }));
+    }
+
+    [Test]
+    public async Task PageFailureStopsTheRender()
+    {
+        using var document = BlankDocument(PdfiumDocument.PageWindow * 3);
+        var options = new HtmlOptions
+        {
+            ImageUrl = (index, _) =>
+            {
+                if (index == 5)
+                {
+                    throw new InvalidOperationException("page 6 failed");
+                }
+
+                return "page.png";
+            }
+        };
+        await Assert.That(() => document.RenderHtml(TextWriter.Null, options))
+            .Throws<InvalidOperationException>()
+            .WithMessage("page 6 failed");
+    }
+
+    class FailingWriter : StringWriter
+    {
+        public override void Write(string? value)
+        {
+            if (value is not null && value.Contains("id=\"page-3\""))
+            {
+                throw new IOException("disk full");
+            }
+
+            base.Write(value);
+        }
+    }
+
+    [Test]
+    public async Task WriterFailureStopsTheRender()
+    {
+        using var document = BlankDocument(PdfiumDocument.PageWindow * 3);
+        await Assert.That(() => document.RenderHtml(new FailingWriter(), textOnly))
+            .Throws<IOException>()
+            .WithMessage("disk full");
+    }
+
+    [Test]
     public async Task ImageOnly()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);

@@ -203,7 +203,16 @@ public class HtmlBrowserTests
             });
         var page = await context.NewPageAsync();
         await page.SetContentAsync(Wrap(fragment));
-        await page.EvaluateAsync("document.fonts.ready");
+        // A lazily loaded image off screen would be captured before it arrives.
+        await page.EvaluateAsync(
+            """
+            async () => {
+              const images = [...document.images];
+              images.forEach(_ => _.loading = 'eager');
+              await Promise.all(images.map(_ => _.decode()));
+              await document.fonts.ready;
+            }
+            """);
         return await page.Locator(".pdf-page").ScreenshotAsync();
     }
 

@@ -58,6 +58,14 @@ public sealed record HtmlOptions
     /// </summary>
     public Func<int, byte[], string>? ImageUrl { get; init; }
 
+    /// <summary>
+    /// Whether the images of pages after the first load only as they are scrolled near
+    /// (<c>loading="lazy"</c>), so a long document opens quickly. On by default. Turn it off
+    /// for HTML that is printed or captured without being scrolled through, in a browser that
+    /// does not load lazy images first.
+    /// </summary>
+    public bool LazyLoadImages { get; init; } = true;
+
     internal void Validate(string paramName)
     {
         if (Render is null)

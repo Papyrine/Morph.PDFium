@@ -79,4 +79,84 @@ public sealed partial class PdfiumDocument
 
         return results;
     }
+
+    // How many pages ProcessPagesInOrder lets its workers get ahead of the next page to consume.
+    internal static int PageWindow => Environment.ProcessorCount * 2;
+
+    /// <summary>
+    /// Like <see cref="ProcessPages{T}(Func{PdfPage,T})"/>, but hands each page's result to
+    /// <paramref name="consume"/> in page order as soon as it and every page before it are
+    /// done, instead of collecting them all, so only a window of results is held at once.
+    /// <paramref name="consume"/> runs on the worker threads, one call at a time.
+    /// </summary>
+    internal void ProcessPagesInOrder<T>(Func<PdfPage, T> process, Action<T> consume)
+    {
+        ThrowIfDisposed();
+        var count = pageCount;
+        var workers = Math.Min(Environment.ProcessorCount, count);
+        // Pages are handed out in order, and a worker takes one only while fewer than
+        // PageWindow are started but not yet consumed. So the results waiting on a slow page
+        // stay within the window, rather than every later page piling up behind it.
+        using var window = new SemaphoreSlim(PageWindow);
+        var results = new T[count];
+        var done = new bool[count];
+        var gate = new Lock();
+        // Guarded by gate: the next page to consume.
+        var next = 0;
+        var taken = -1;
+        var failed = false;
+        try
+        {
+            Parallel.For(0, workers, _ =>
+            {
+                while (true)
+                {
+                    window.Wait();
+                    var index = Interlocked.Increment(ref taken);
+                    if (index >= count || Volatile.Read(ref failed))
+                    {
+                        window.Release();
+                        return;
+                    }
+
+                    try
+                    {
+                        T result;
+                        using (var page = LoadPage(index))
+                        {
+                            result = process(page);
+                        }
+
+                        lock (gate)
+                        {
+                            results[index] = result;
+                            done[index] = true;
+                            while (next < count && done[next])
+                            {
+                                var ready = results[next];
+                                results[next] = default!;
+                                next++;
+                                consume(ready);
+                                window.Release();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // The failed page is never consumed, so the window would never open
+                        // again: wake every waiting worker to see the failure and stop.
+                        Volatile.Write(ref failed, true);
+                        window.Release(workers);
+                        throw;
+                    }
+                }
+            });
+        }
+        catch (AggregateException exception)
+        {
+            // Surface what process or consume threw, as a sequential loop would.
+            ExceptionDispatchInfo.Capture(exception.InnerExceptions[0]).Throw();
+            throw;
+        }
+    }
 }

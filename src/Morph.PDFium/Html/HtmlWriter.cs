@@ -20,6 +20,7 @@ static class HtmlWriter
         .pdf-page{box-shadow:0 1px 4px rgba(0,0,0,.5)}
         .pdf-page ::selection{background:rgba(0,100,255,.3)}
         .pdf-overlay ::selection{fill:transparent}
+        @page{margin:0}
         @media print{body{background:none}.pdf-outline{display:none}.pdf-document{padding:0;gap:0}.pdf-page{box-shadow:none;break-after:page}}
         """;
 
@@ -39,7 +40,15 @@ static class HtmlWriter
             // With text the image is decoration over which the text is read; without it the
             // image is all there is, so it says which page it is.
             var alt = options.Text == HtmlTextMode.None ? $"Page {layout.Index + 1}" : "";
-            builder.Append($"\" alt=\"{alt}\" draggable=\"false\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;user-select:none\">\n");
+            builder.Append($"\" alt=\"{alt}\"");
+            // The first page is on screen as soon as the HTML opens, so only later pages wait
+            // until they are scrolled near.
+            if (options.LazyLoadImages && layout.Index > 0)
+            {
+                builder.Append(" loading=\"lazy\" decoding=\"async\"");
+            }
+
+            builder.Append(" draggable=\"false\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;user-select:none\">\n");
         }
 
         if (layout.Runs.Count > 0 || layout.Links.Count > 0)
@@ -151,7 +160,11 @@ static class HtmlWriter
         builder.Append("</text>\n");
     }
 
-    public static void Document(TextWriter writer, string title, string? language, Dictionary<string, string>? properties, IReadOnlyList<PdfBookmark> outline, IReadOnlyList<string> pages, HtmlOptions options)
+    public const string DocumentEnd = "</main>\n</body>\n</html>\n";
+
+    // Everything before the pages: the head, the outline and the opening of the main element.
+    // DocumentEnd follows the pages.
+    public static void DocumentStart(TextWriter writer, string title, string? language, Dictionary<string, string>? properties, IReadOnlyList<PdfBookmark> outline, HtmlOptions options)
     {
         var builder = new StringBuilder("<!DOCTYPE html>\n<html");
         if (language is not null && IsLanguageTag(language))
@@ -176,12 +189,6 @@ static class HtmlWriter
 
         builder.Append("<main class=\"pdf-document\">\n");
         writer.Write(builder);
-        foreach (var page in pages)
-        {
-            writer.Write(page);
-        }
-
-        writer.Write("</main>\n</body>\n</html>\n");
     }
 
     static void AppendMeta(StringBuilder builder, string name, Dictionary<string, string>? properties, string property)
