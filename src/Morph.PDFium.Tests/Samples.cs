@@ -220,6 +220,76 @@ public class Samples
     }
 
     [Test]
+    public async Task RenderHtml()
+    {
+        #region RenderHtml
+
+        using var document = PdfiumDocument.Load("multi-page.pdf");
+        // Each page's image with its text selectable over it; the images are embedded
+        var html = document.RenderHtml();
+
+        #endregion
+
+        await Assert.That(html).StartsWith("<!DOCTYPE html>");
+    }
+
+    [Test]
+    public async Task RenderHtmlOptions()
+    {
+        var directory = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            #region RenderHtmlOptions
+
+            using var document = PdfiumDocument.Load("multi-page.pdf");
+            var html = document.RenderHtml(
+                new HtmlOptions
+                {
+                    Render = new()
+                    {
+                        Dpi = 150
+                    },
+                    // Write each page's image beside the HTML rather than embedding it
+                    ImageUrl = (index, png) =>
+                    {
+                        var name = $"page{index + 1}.png";
+                        File.WriteAllBytes(Path.Combine(directory, name), png);
+                        return name;
+                    }
+                });
+            File.WriteAllText(Path.Combine(directory, "document.html"), html);
+
+            #endregion
+
+            await Assert.That(File.Exists(Path.Combine(directory, "page4.png"))).IsTrue();
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Test]
+    public async Task RenderTextHtml()
+    {
+        #region RenderTextHtml
+
+        using var document = PdfiumDocument.Load("sample.pdf");
+        // Text-only HTML: the text in its own color and style, with no page image
+        var fragment = document.RenderPageHtml(
+            0,
+            new HtmlOptions
+            {
+                IncludeImage = false,
+                Text = HtmlTextMode.Visible
+            });
+
+        #endregion
+
+        await Assert.That(fragment).StartsWith("<div class=\"pdf-page\"");
+    }
+
+    [Test]
     public async Task RenderRegion()
     {
         #region RenderRegion
