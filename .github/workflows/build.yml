@@ -77,7 +77,11 @@ jobs:
         run: dotnet build src --configuration Release -p:GeneratePackageOnBuild=${{ matrix.pack }} ${{ env.VERSION_ARGUMENT }}
 
       # HtmlBrowserTests installs Chromium for Playwright on first use. Keyed on the package
-      # versions, so a Playwright upgrade fetches the browser it expects.
+      # versions, so a Playwright upgrade fetches the browser it expects. ubuntu-latest already
+      # has the system libraries Chromium needs, so Playwright's install-deps, which can spend
+      # minutes on a slow apt mirror, isn't run. Should an image lack one, launching fails naming
+      # it, and `pwsh src/Morph.PDFium.Tests/bin/Release/net10.0/playwright.ps1 install-deps
+      # chromium` after the build installs them.
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
