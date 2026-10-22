@@ -21,8 +21,26 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  # Tests on every OS the package ships PDFium for. Windows alone packs, and its packages are the
+  # ones published.
   build:
-    runs-on: windows-latest
+    strategy:
+      # One platform failing doesn't cancel the others, so every run reports all three.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pack: true
+            playwright: ~\AppData\Local\ms-playwright
+          - os: ubuntu-latest
+            pack: false
+            playwright: ~/.cache/ms-playwright
+          # arm64: native `unsigned long` is 64 bit, and the PNG encoder takes its 128-bit
+          # vector path.
+          - os: macos-latest
+            pack: false
+            playwright: ~/Library/Caches/ms-playwright
+    runs-on: ${{ matrix.os }}
     env:
       # SponsorCheck bundles the sponsor list during pack on non-PR builds and needs a
       # classic PAT (org secret). PR builds skip it.
@@ -54,16 +72,22 @@ jobs:
         run: echo "VERSION_ARGUMENT=-p:Version=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Build
-        # Packs as a side effect (GeneratePackageOnBuild), populating ./nugets.
-        run: dotnet build src --configuration Release ${{ env.VERSION_ARGUMENT }}
+        # Packs as a side effect (GeneratePackageOnBuild), populating ./nugets, on the packing leg.
+        run: dotnet build src --configuration Release -p:GeneratePackageOnBuild=${{ matrix.pack }} ${{ env.VERSION_ARGUMENT }}
 
       # HtmlBrowserTests installs Chromium for Playwright on first use. Keyed on the package
       # versions, so a Playwright upgrade fetches the browser it expects.
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
-          path: ~\AppData\Local\ms-playwright
+          path: ${{ matrix.playwright }}
           key: playwright-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props') }}
+
+      # The browser comes from Playwright, but on Linux the libraries it links against come from
+      # apt, and the cache doesn't hold them.
+      - name: Install Chromium's system libraries
+        if: runner.os == 'Linux'
+        run: pwsh src/Morph.PDFium.Tests/bin/Release/net10.0/playwright.ps1 install-deps chromium
 
       - name: Test
         run: dotnet run --project src/Morph.PDFium.Tests --configuration Release --no-build -- --report-trx
@@ -79,13 +103,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: received
+          name: received-${{ runner.os }}
           path: '**/*.received.*'
           if-no-files-found: ignore
           retention-days: 14
 
       - name: Upload packages
-        if: success()
+        if: success() && matrix.pack
         uses: actions/upload-artifact@v7
         with:
           name: nupkgs
