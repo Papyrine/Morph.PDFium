@@ -194,6 +194,73 @@ public class HtmlTests
         await Assert.That(Background(document)).IsEquivalentTo(RenderOf(string.Format(clipped, 7)));
     }
 
+    // Every kind of text the background leaves out: over a drawing, outlined, inside a form,
+    // and clipping a fill, which must still be clipped.
+    static byte[] BackgroundPdf() =>
+        SinglePage(
+            """
+            1 0 0 rg 60 600 300 140 re f 0 0 1 RG 4 w 380 560 m 560 740 l S
+            0 g BT /F1 28 Tf 72 690 Td (Text over a drawing) Tj ET
+            BT /F1 36 Tf 1 Tr 0 0 1 RG 1 w 72 520 Td (Outlined text) Tj ET
+            q 1 0 0 1 0 -300 cm /Fm1 Do Q
+            q BT /F1 120 Tf 4 Tr 0 g 72 80 Td (CLIP) Tj ET 1 0.5 0 rg 0 0 612 792 re f Q
+            """,
+            "0 0.6 0 rg 60 600 300 100 re f 1 g BT /F1 24 Tf 0 Tr 80 640 Td (Text in a form) Tj ET");
+
+    [Test]
+    public async Task BackgroundSnapshot()
+    {
+        using var document = PdfiumDocument.Load(BackgroundPdf());
+        byte[]? background = null;
+        var html = document.RenderPageHtml(
+            0,
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (_, png) =>
+                {
+                    background = png;
+                    return "background.png";
+                }
+            });
+        // The HTML, the page image it draws its text over, and PDFium's full render beside it.
+        // The fill that "CLIP" clips is painted after the text, so in the render it hides the
+        // text, but the HTML draws the text on top: text covered by later drawing is not yet
+        // detected.
+        await Verify(
+            [
+                new("html", html),
+                new Target("png", new MemoryStream(background!), "background"),
+                new Target("png", new MemoryStream(document.RenderPage(0)), "render")
+            ])
+            .Snapshot(
+                """
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
+                <img src="background.png" alt="" draggable="false" style="position:absolute;left:0;top:0;width:100%;height:100%;user-select:none">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
+                <text x="72" y="102" font-size="28" textLength="245.87" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Text over a drawing</text>
+                <text x="72" y="272" font-size="36" textLength="202.1" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="none" stroke="#0000ff" stroke-width="1">Outlined text</text>
+                <text x="80" y="452" font-size="24" textLength="146.71" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="#ffffff">Text in a form</text>
+                <text x="72" y="712" font-size="120" textLength="266.76" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">CLIP</text>
+                </svg>
+                </div>
+
+                """);
+    }
+
+    [Test]
+    public async Task DocumentWithBackgrounds()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        var html = document.RenderHtml(
+            new()
+            {
+                Text = HtmlTextMode.Visible,
+                ImageUrl = (index, _) => $"page{index + 1}.png"
+            });
+        await Verify(html, "html");
+    }
+
     [Test]
     public async Task BackgroundRestoresTheText()
     {
