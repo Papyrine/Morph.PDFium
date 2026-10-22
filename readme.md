@@ -73,7 +73,7 @@ using var document = PdfiumDocument.Load("multi-page.pdf");
 // Pages are spread across cores: PDFium works on one at a time, the PNG encoding overlaps
 var pages = document.ProcessPages(_ => (Text: _.GetText(), Png: _.Render(dpi: 96)));
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L194-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-ProcessPages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L201-L207' title='Snippet source file'>snippet source</a> | <a href='#snippet-ProcessPages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -84,10 +84,17 @@ var pages = document.ProcessPages(_ => (Text: _.GetText(), Png: _.Render(dpi: 96
 ```cs
 using var document = PdfiumDocument.Load("multi-page.pdf");
 Console.WriteLine(document.PageCount);
-Console.WriteLine(document.GetPageSizes());
-Console.WriteLine(document.GetProperties());
+foreach (var size in document.GetPageSizes())
+{
+    Console.WriteLine($"{size.Width} x {size.Height}");
+}
+
+foreach (var (name, value) in document.GetProperties() ?? [])
+{
+    Console.WriteLine($"{name}: {value}");
+}
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L40-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-DocumentInfo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L40-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-DocumentInfo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -107,7 +114,7 @@ var png = document.RenderPage(
         Dpi = 150
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L144-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderGrayscale' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L151-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderGrayscale' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -130,7 +137,7 @@ var png = document.RenderPage(
 // For every render not given a level of its own
 RenderOptions.DefaultCompressionLevel = PngCompressionLevel.Level4;
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-CompressionLevel' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L174-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-CompressionLevel' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -152,7 +159,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L333-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L340-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -169,7 +176,7 @@ var text = page.GetText();
 // Renders the page that is already loaded, rather than parsing it again
 var png = page.Render(dpi: 96);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L208-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderOpenPage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L215-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderOpenPage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -184,7 +191,7 @@ using var document = PdfiumDocument.Load("multi-page.pdf");
 // Each page's image with its text selectable over it; the images are embedded
 var html = document.RenderHtml();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L225-L231' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtml' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L232-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtml' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Images are embedded as data URIs by default, which keeps the HTML self-contained. `HtmlOptions.ImageUrl` lets them be written out as files instead, and `HtmlOptions.Render` sets how they are rendered. For another image format, such as WebP or JPEG, set `HtmlOptions.ImageUrlFromPixels` instead: it is handed each page's RGBA pixels before any PNG is encoded, to encode with an image library and return the image's URL (a file beside the HTML, or a data URI). Images after the first page load lazily as they are scrolled near; set `LazyLoadImages = false` for HTML that is printed or captured without scrolling.
@@ -214,7 +221,7 @@ var html = document.RenderHtml(
     });
 File.WriteAllText(Path.Combine(directory, "document.html"), html);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L242-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L249-L269' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With `HtmlTextMode.Visible`, the HTML draws the text itself. It keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over. The page image is then rendered without its text, so images and drawings stay while the text is sharp at any zoom. The text-free images are also much smaller: at 150 DPI they were 3% of the full render's size for text pages, about 10% for forms and tables, and around half for photo-heavy pages. The trade-off is that the text is in the browser's fonts, so it looks less like the PDF than the default overlay.
@@ -231,7 +238,7 @@ var html = document.RenderHtml(
         Text = HtmlTextMode.Visible
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L295-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlVisibleText' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L302-L313' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlVisibleText' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image as well.
@@ -249,7 +256,7 @@ var fragment = document.RenderPageHtml(
         Text = HtmlTextMode.Visible
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L275-L287' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L282-L294' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Only http, https, mailto, ftp and tel links and relative references are kept: `javascript:` links, launch actions and links into embedded files are dropped. For PDFs from an untrusted source, narrow that with `HtmlOptions.AllowedLinkSchemes` and `AllowRelativeLinks`. Links to the document's own pages are kept either way.
@@ -266,7 +273,7 @@ var html = document.RenderHtml(
         AllowRelativeLinks = false
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L314-L325' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlUntrustedLinks' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L321-L332' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlUntrustedLinks' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -279,7 +286,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 using var page = document.LoadPage(0);
 var text = page.GetText();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-ExtractText' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L68-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-ExtractText' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -295,7 +302,7 @@ var matches = page.Search("paragraph");
 var first = matches[0];
 var rectangles = page.GetTextRectangles(first.CharIndex, first.CharCount);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L75-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-SearchText' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L82-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-SearchText' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -310,7 +317,7 @@ foreach (var bookmark in document.GetBookmarks())
     Console.WriteLine($"{bookmark.Title} -> page {bookmark.Destination?.PageIndex}");
 }
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L93-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-Bookmarks' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L100-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-Bookmarks' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -326,7 +333,7 @@ foreach (var annotation in page.GetAnnotations())
     Console.WriteLine($"{annotation.Type}: {annotation.Contents}");
 }
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L109-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-Annotations' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L116-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-Annotations' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -343,7 +350,7 @@ foreach (var field in form.GetFields(page))
     Console.WriteLine($"{field.Name} ({field.Type}) = {field.Value}");
 }
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L126-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-FormFields' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L133-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-FormFields' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -362,7 +369,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L354-L366' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L361-L373' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -382,7 +389,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L375-L386' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L382-L393' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -395,7 +402,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L394-L400' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L401-L407' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).
@@ -406,8 +413,8 @@ For the full list of native PDFium entry points that are wrapped (and those inte
  * Pages render with a white background and annotations included.
  * Output dimensions are `pageSizeInPoints / 72 * dpi`, rounded to the nearest pixel. The default 96 dpi renders an A4 page at 794 x 1123 and a Letter page at 816 x 1056.
  * The PNG includes a `pHYs` chunk recording the render dpi.
- * PDFium is not thread safe, so all native calls are serialized on a process-wide lock. `PdfiumDocument` instances can safely be used from multiple threads, but rendering does not parallelize.
- * Rendering is deterministic for a given Morph.PDFium version: the same input produces byte-identical PNGs on every machine and OS, which makes the output suitable for snapshot testing. [Verify.PDFium](https://github.com/VerifyTests/Verify.PDFium) builds on this.
+ * PDFium is not thread safe, so all native calls are serialized on a process-wide lock. `PdfiumDocument` instances can safely be used from multiple threads. PDFium itself works on one page at a time, but the PNG encoding and other managed work for a page overlap it, which is what `ProcessPages`, `RenderPages` and `RenderHtml` make use of.
+ * Rendering is deterministic for a given Morph.PDFium version: for documents whose fonts are embedded (or are among the standard 14), the same input produces the same pixels on every machine and OS, which makes the output suitable for snapshot testing. A font the document does not embed is substituted from the system's fonts, which vary by machine, and the PNG bytes also depend on the .NET runtime's deflate, which may change between runtime versions even when the pixels do not. [Verify.PDFium](https://github.com/VerifyTests/Verify.PDFium) builds on this.
 
 
 ## Icon

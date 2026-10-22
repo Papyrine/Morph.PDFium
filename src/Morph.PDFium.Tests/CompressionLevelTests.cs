@@ -25,9 +25,9 @@ public class CompressionLevelTests
             RenderOptions.DefaultCompressionLevel = PngCompressionLevel.Fastest;
             var expected = document.RenderPage(0, new RenderOptions { CompressionLevel = PngCompressionLevel.Fastest });
             await Assert.That(expected.Length).IsGreaterThan(standard.Length);
-            await Assert.That(document.RenderPage(0)).IsEquivalentTo(expected);
-            await Assert.That(document.RenderPages()[0]).IsEquivalentTo(expected);
-            await Assert.That(page.Render()).IsEquivalentTo(expected);
+            await Bytes.AreEqual(document.RenderPage(0), expected);
+            await Bytes.AreEqual(document.RenderPages()[0], expected);
+            await Bytes.AreEqual(page.Render(), expected);
             // Options created from now on start from the new default.
             await Assert.That(new RenderOptions().CompressionLevel).IsEqualTo(PngCompressionLevel.Fastest);
         }

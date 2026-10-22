@@ -125,10 +125,34 @@ static class HtmlWriter
             builder.Append($" textLength=\"{Number(run.Length)}\" lengthAdjust=\"spacingAndGlyphs\"");
         }
 
-        var angle = Number(run.Angle);
-        if (angle != "0")
+        if (run.RightToLeft)
         {
-            builder.Append($" transform=\"rotate({angle} {x} {y})\"");
+            // Started at its right-hand end: so laid out, the browser also places neutral
+            // characters, such as a full stop, where right-to-left text has them.
+            builder.Append(" direction=\"rtl\"");
+        }
+
+        var angle = Number(run.Angle);
+        if (angle != "0" || run.Mirrored)
+        {
+            builder.Append(" transform=\"");
+            if (angle != "0")
+            {
+                builder.Append($"rotate({angle} {x} {y})");
+            }
+
+            if (run.Mirrored)
+            {
+                if (angle != "0")
+                {
+                    builder.Append(' ');
+                }
+
+                // Flipped across the baseline about the run's start, before it is turned.
+                builder.Append($"translate({x} {y}) scale(1 -1) translate({Number(-run.X)} {Number(-run.Y)})");
+            }
+
+            builder.Append('"');
         }
 
         var style = run.Style;
@@ -354,6 +378,15 @@ static class HtmlWriter
         var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
         if (colon < 0 || (delimiter >= 0 && delimiter < colon))
         {
+            // Two slashes, or backslashes, which browsers read as slashes, in any mix, start a
+            // network-path reference: another host, reached with the page's own scheme, or
+            // from a file:// page on Windows an SMB share, which can leak the user's
+            // credentials. Not a relative link to anything beside the HTML, so never kept.
+            if (cleaned.Length >= 2 && cleaned[0] is '/' or '\\' && cleaned[1] is '/' or '\\')
+            {
+                return null;
+            }
+
             if (options.AllowRelativeLinks)
             {
                 return cleaned;
@@ -412,7 +445,8 @@ static class HtmlWriter
                 case '\t' or '\n':
                     builder.Append(character);
                     break;
-                case < ' ' or '\u007F':
+                // C0 and C1 controls and DEL, and the two noncharacters a UTF-16 unit can hold.
+                case < ' ' or (>= '\u007F' and <= '\u009F') or '\uFFFE' or '\uFFFF':
                     break;
                 default:
                     if (char.IsHighSurrogate(character) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))

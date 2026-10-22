@@ -12,9 +12,10 @@ namespace Morph.PDFium;
 public readonly record struct PdfTextChar(int Index, char Char, PdfRectangle Box, PdfPoint Origin, double FontSize)
 {
     /// <summary>
-    /// The Unicode value exactly as PDFium reports it. PDFium's characters are 32 bit outside
-    /// Windows, so there this can be a code point beyond the Basic Multilingual Plane, which
-    /// <see cref="Char"/> cannot hold.
+    /// The Unicode value exactly as PDFium reports it. On every platform PDFium reports a code
+    /// point beyond the Basic Multilingual Plane as two characters, the halves of its
+    /// surrogate pair, each with a <see cref="CodePoint"/> of its own; one above 0xFFFF is
+    /// shown as U+FFFD in <see cref="Char"/>.
     /// </summary>
     public int CodePoint { get; init; }
 }

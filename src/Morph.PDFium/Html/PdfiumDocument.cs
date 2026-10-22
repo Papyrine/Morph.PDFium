@@ -57,7 +57,7 @@ public sealed partial class PdfiumDocument
         // Read without loading the pages, and as they are displayed, rotation included: the
         // same sizes the pages render at. Only the pages rendered need one.
         var count = Math.Min(PageCount, options.MaxPages ?? int.MaxValue);
-        var sizes = GetPageSizes().Take(count).ToList();
+        var sizes = GetPageSizes(count);
         HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, sizes, options);
         // Each page is written as soon as it and the pages before it are rendered, so a long
         // document is never held in memory whole.

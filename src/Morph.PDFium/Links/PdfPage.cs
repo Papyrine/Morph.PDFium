@@ -16,8 +16,10 @@ public sealed partial class PdfPage
             var position = 0;
             while (PdfiumNative.FPDFLink_Enumerate(page, ref position, out var link) && link != IntPtr.Zero)
             {
+                // A link may name any two opposite corners of its rectangle, and PDFium reports
+                // them as written, so they are put in order.
                 var rectangle = PdfiumNative.FPDFLink_GetAnnotRect(link, out var rect)
-                    ? new PdfRectangle(rect.Left, rect.Bottom, rect.Right, rect.Top)
+                    ? new PdfRectangle(Math.Min(rect.Left, rect.Right), Math.Min(rect.Bottom, rect.Top), Math.Max(rect.Left, rect.Right), Math.Max(rect.Bottom, rect.Top))
                     : default;
                 var (destination, action) = Navigation.ReadTarget(doc, PdfiumNative.FPDFLink_GetDest(doc, link), PdfiumNative.FPDFLink_GetAction(link));
                 links.Add(new(rectangle, destination, action));

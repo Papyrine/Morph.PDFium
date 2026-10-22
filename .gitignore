@@ -9,5 +9,5 @@ obj/
 nugets/
 *~*
 nul
-/BenchmarkDotNet.Artifacts
+BenchmarkDotNet.Artifacts/
 *.lnk

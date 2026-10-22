@@ -39,9 +39,12 @@ public sealed partial class PdfPage
     /// <summary>
     /// Adds a text object drawn at (<paramref name="x"/>, <paramref name="y"/>) in page points,
     /// using one of the standard 14 fonts. The page content stream is regenerated once, when
-    /// it is next needed (save, render or disposing the page), not on every call. Those fonts
-    /// only cover Windows-1252 (Western European) characters; text containing anything else
-    /// throws <see cref="ArgumentException"/>.
+    /// it is next needed (save, render or disposing the page), not on every call. The text
+    /// fonts cover the printable Windows-1252 (Western European) characters, without the
+    /// no-break space and soft hyphen; text containing anything else, a control character
+    /// such as a tab or line break included, throws <see cref="ArgumentException"/>. Symbol
+    /// and ZapfDingbats take the characters of their own sets (Greek letters and mathematical
+    /// signs, and dingbats) and are not checked: any other character is written as ÿ.
     /// </summary>
     public void AddText(string text, double x, double y, string fontName = "Helvetica", double fontSize = 12, PdfColor? color = null)
     {
@@ -68,7 +71,13 @@ public sealed partial class PdfPage
             PdfiumNative.FPDFPageObj_SetFillColor(obj, fill.R, fill.G, fill.B, fill.A);
             // Translate the object to the requested baseline position.
             PdfiumNative.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
-            PdfiumNative.FPDFPage_InsertObject(page, obj);
+            if (!PdfiumNative.FPDFPage_InsertObject(page, obj))
+            {
+                // Still ours to free: the page took no ownership of it.
+                PdfiumNative.FPDFPageObj_Destroy(obj);
+                throw new PdfiumException("Failed to add the object to the page");
+            }
+
             contentPending = true;
             CloseText();
         }
@@ -91,9 +100,12 @@ public sealed partial class PdfPage
 
         foreach (var character in text)
         {
-            if (character > 0xFF && !windows1252Extras.Contains(character))
+            // Printable ASCII and Latin-1, and the extras. Not the control characters, C0 or
+            // C1, nor Latin-1's no-break space or soft hyphen: PDFium writes each of those as ÿ.
+            var encodable = character is (>= ' ' and <= '~') or (>= '¡' and <= 'ÿ') && character != '\u00AD';
+            if (!encodable && !windows1252Extras.Contains(character))
             {
-                throw new ArgumentException($"Character '{character}' (U+{(int) character:X4}) cannot be written with font '{fontName}'. The standard fonts only cover Windows-1252.", nameof(text));
+                throw new ArgumentException($"Character '{character}' (U+{(int) character:X4}) cannot be written with font '{fontName}'. The standard text fonts only cover printable Windows-1252.", nameof(text));
             }
         }
     }
@@ -123,7 +135,13 @@ public sealed partial class PdfPage
             // A path only fills/strokes once its draw mode is set; without this the rectangle
             // is a no-op and PDFium discards it when the content stream is reparsed on load.
             PdfiumNative.FPDFPath_SetDrawMode(obj, PdfiumNative.FillModeWinding, stroke is not null);
-            PdfiumNative.FPDFPage_InsertObject(page, obj);
+            if (!PdfiumNative.FPDFPage_InsertObject(page, obj))
+            {
+                // Still ours to free: the page took no ownership of it.
+                PdfiumNative.FPDFPageObj_Destroy(obj);
+                throw new PdfiumException("Failed to add the object to the page");
+            }
+
             contentPending = true;
         }
     }

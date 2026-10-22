@@ -11,11 +11,13 @@ public sealed class PdfAttachment
 {
     readonly PdfiumDocument document;
     readonly IntPtr handle;
+    readonly AttachmentToken token;
 
-    internal PdfAttachment(PdfiumDocument document, IntPtr handle)
+    internal PdfAttachment(PdfiumDocument document, IntPtr handle, AttachmentToken token)
     {
         this.document = document;
         this.handle = handle;
+        this.token = token;
     }
 
     // Caller must hold PdfiumNative.Sync.
@@ -23,7 +25,7 @@ public sealed class PdfAttachment
     {
         // Touch the document so a disposed document surfaces as ObjectDisposedException.
         _ = document.Handle;
-        if (document.IsAttachmentDeleted(handle))
+        if (token.Deleted)
         {
             throw new InvalidOperationException("The attachment has been deleted from its document.");
         }
@@ -66,6 +68,8 @@ public sealed class PdfAttachment
                 return [];
             }
 
+            // Decoded a second time: PDFium copies the file only into a buffer of exactly its
+            // length, so a larger one, which could have saved the first decode, stays empty.
             var length = checked((uint) required.Value);
             var buffer = new byte[length];
             if (!PdfiumNative.FPDFAttachment_GetFile(handle, buffer, length, out _))

@@ -18,18 +18,21 @@ static class Interop
     /// used by FPDF_GetMetaText, FPDFBookmark_GetTitle, FPDFAction_GetURIPath, ...).
     /// Returns null when the value is absent or empty.
     /// </summary>
+    /// <remarks>
+    /// The first call is made into a stack buffer rather than an empty one: PDFium fills a
+    /// buffer only when the whole value fits, and always returns the length it needs, so a
+    /// value that fits, as most do, costs one native call instead of two.
+    /// </remarks>
     public static string? Utf16ByLength<TState>(TState state, LengthDelegate<TState> call)
     {
-        var length = call(state, [], 0);
+        Span<byte> stack = stackalloc byte[stackLimit];
+        var length = call(state, stack, stackLimit);
         if (length <= 2)
         {
             return null;
         }
 
-        var size = checked((int) length);
-        var buffer = size <= stackLimit ? stackalloc byte[stackLimit] : new byte[size];
-        buffer = buffer[..size];
-        call(state, buffer, length);
+        var buffer = Filled(state, call, stack, length);
         var value = Encoding.Unicode.GetString(buffer[..^2]);
         if (value.Length == 0)
         {
@@ -47,16 +50,15 @@ static class Interop
     /// </summary>
     public static string? Utf8ByLength<TState>(TState state, LengthDelegate<TState> call)
     {
-        var length = call(state, [], 0);
+        // A stack buffer for the first call, as Utf16ByLength explains.
+        Span<byte> stack = stackalloc byte[stackLimit];
+        var length = call(state, stack, stackLimit);
         if (length <= 1)
         {
             return null;
         }
 
-        var size = checked((int) length);
-        var buffer = size <= stackLimit ? stackalloc byte[stackLimit] : new byte[size];
-        buffer = buffer[..size];
-        call(state, buffer, length);
+        var buffer = Filled(state, call, stack, length);
         var value = Encoding.UTF8.GetString(buffer[..^1]);
         if (value.Length == 0)
         {
@@ -64,6 +66,20 @@ static class Interop
         }
 
         return value;
+    }
+
+    // The value of length bytes that the first call put in stack, when it fitted, or a second
+    // call puts in a buffer of its size, when it did not.
+    static ReadOnlySpan<byte> Filled<TState>(TState state, LengthDelegate<TState> call, Span<byte> stack, uint length)
+    {
+        if (length <= stackLimit)
+        {
+            return stack[..(int) length];
+        }
+
+        var buffer = new byte[checked((int) length)];
+        call(state, buffer, length);
+        return buffer;
     }
 
     /// <summary>

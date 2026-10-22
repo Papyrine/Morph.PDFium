@@ -83,7 +83,7 @@ public class PdfiumDocumentTests
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var first = document.RenderPage(0);
         var second = document.RenderPage(0);
-        await Assert.That(second).IsEquivalentTo(first);
+        await Bytes.AreEqual(second, first);
     }
 
     [Test]
@@ -96,7 +96,7 @@ public class PdfiumDocumentTests
                 .Select(_ => Task.Run(() => document.RenderPage(0))));
         foreach (var render in renders)
         {
-            await Assert.That(render).IsEquivalentTo(reference);
+            await Bytes.AreEqual(render, reference);
         }
     }
 
@@ -198,7 +198,7 @@ public class PdfiumDocumentTests
         await Assert.That(pages.Count).IsEqualTo(document.PageCount);
         for (var index = 0; index < pages.Count; index++)
         {
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index));
         }
     }
 
@@ -269,6 +269,9 @@ public class PdfiumDocumentTests
         for (var iteration = 0; iteration < 20; iteration++)
         {
             var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+            // Disposed only once the reader is calling in, so the two really overlap rather
+            // than the reader starting after Dispose has finished.
+            var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var reader = Task.Run(() =>
             {
                 try
@@ -276,6 +279,7 @@ public class PdfiumDocumentTests
                     while (true)
                     {
                         document.GetPageSize(0);
+                        reading.TrySetResult();
                     }
                 }
                 catch (ObjectDisposedException)
@@ -283,6 +287,7 @@ public class PdfiumDocumentTests
                     // The only acceptable way for a call to lose the race with Dispose.
                 }
             });
+            await reading.Task;
             document.Dispose();
             await reader;
         }

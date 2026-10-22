@@ -88,11 +88,11 @@ public class HtmlTests
                     return $"images/{index + 1}.png";
                 }
             });
-        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3]);
+        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3], CollectionOrdering.Matching);
         for (var index = 0; index < 4; index++)
         {
             await Assert.That(html).Contains($"<img src=\"images/{index + 1}.png\"");
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index));
         }
 
         // The pages come out in order.
@@ -119,11 +119,11 @@ public class HtmlTests
                     return $"images/{index + 1}.webp";
                 }
             });
-        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3]);
+        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3], CollectionOrdering.Matching);
         for (var index = 0; index < 4; index++)
         {
             await Assert.That(html).Contains($"<img src=\"images/{index + 1}.webp\"");
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index, render));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index, render));
         }
     }
 
@@ -137,6 +137,7 @@ public class HtmlTests
         };
         byte[]? png = null;
         var size = (Width: 0, Height: 0, Dpi: 0d);
+        var pixelBytes = 0;
         var html = document.RenderPageHtml(
             0,
             new()
@@ -147,14 +148,17 @@ public class HtmlTests
                 {
                     png = PngEncoder.Encode(image.Pixels, image.Width, image.Height, image.Dpi, (int) render.CompressionLevel);
                     size = (image.Width, image.Height, image.Dpi);
+                    pixelBytes = image.Pixels.Length;
                     return "page.jpg";
                 }
             });
         await Assert.That(html).Contains("<img src=\"page.jpg\"");
         // US Letter at 72 DPI: a pixel a point.
         await Assert.That(size).IsEqualTo((612, 792, 72d));
+        // Exactly the image's pixels, four bytes each, not the larger pooled buffer behind them.
+        await Assert.That(pixelBytes).IsEqualTo(612 * 792 * 4);
         using var page = document.LoadPage(0);
-        await Assert.That(png).IsEquivalentTo(page.RenderWithoutText(render, false));
+        await Bytes.AreEqual(png!, page.RenderWithoutText(render, false));
     }
 
     // Pages of three sizes, portrait, landscape and fractional, the first size twice, each
@@ -188,7 +192,7 @@ public class HtmlTests
 
     // A one page PDF of the given content stream, with Helvetica as /F1 and a form XObject
     // /Fm1 that draws the given form content.
-    static byte[] SinglePage(string content, string formContent = "") =>
+    internal static byte[] SinglePage(string content, string formContent = "") =>
         CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R >>",
@@ -275,15 +279,15 @@ public class HtmlTests
         const string drawing = "1 0 0 rg 72 500 200 100 re f 0 0 1 RG 4 w 300 300 m 500 450 l S";
         using var document = PdfiumDocument.Load(SinglePage($"{drawing} 0 g BT /F1 24 Tf 72 700 Td (Some text) Tj ET BT /F1 12 Tf 1 Tr 72 650 Td (Outlined) Tj ET"));
         var background = Background(document);
-        await Assert.That(background).IsEquivalentTo(RenderOf(drawing));
-        await Assert.That(background).IsNotEquivalentTo(document.RenderPage(0));
+        await Bytes.AreEqual(background, RenderOf(drawing));
+        await Bytes.AreDifferent(background, document.RenderPage(0));
     }
 
     [Test]
     public async Task BackgroundLeavesOutTextInForms()
     {
         using var document = PdfiumDocument.Load(SinglePage("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f BT /F1 24 Tf 72 700 Td (In a form) Tj ET"));
-        await Assert.That(Background(document)).IsEquivalentTo(RenderOf("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f"));
+        await Bytes.AreEqual(Background(document), RenderOf("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f"));
     }
 
     [Test]
@@ -293,7 +297,7 @@ public class HtmlTests
         // background, the text must still clip, as mode 7 does without drawing.
         const string clipped = "q BT /F1 120 Tf {0} Tr 72 500 Td (CLIP) Tj ET 0 0 1 rg 0 0 612 792 re f Q";
         using var document = PdfiumDocument.Load(SinglePage(string.Format(clipped, 4)));
-        await Assert.That(Background(document)).IsEquivalentTo(RenderOf(string.Format(clipped, 7)));
+        await Bytes.AreEqual(Background(document), RenderOf(string.Format(clipped, 7)));
     }
 
     // Every kind of text the background leaves out: over a drawing, outlined, inside a form,
@@ -381,9 +385,9 @@ public class HtmlTests
             });
 
         // The same page, the document and a save all show the text as before.
-        await Assert.That(page.Render()).IsEquivalentTo(render);
-        await Assert.That(document.RenderPage(0)).IsEquivalentTo(render);
-        await Assert.That(WithoutTrailer(document.Save())).IsEquivalentTo(saved);
+        await Bytes.AreEqual(page.Render(), render);
+        await Bytes.AreEqual(document.RenderPage(0), render);
+        await Bytes.AreEqual(WithoutTrailer(document.Save()), saved);
         await Assert.That(page.GetText()).IsEqualTo(text);
     }
 
@@ -414,7 +418,7 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // The document's own conversions hide the text in place, on a page they load and dispose
@@ -444,7 +448,7 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // Every save writes a fresh random file identifier into the trailer, so saves are compared
@@ -723,6 +727,87 @@ public class HtmlTests
             });
         await Assert.That(html).Contains("<a href=\"remote.pdf\">");
         await Assert.That(html).DoesNotContain("href=\"https:");
+    }
+
+    // References that start with two slashes or backslashes, in any mix, name a host: the
+    // browser resolves "//evil.example/x" against the page's scheme, and on Windows a
+    // "\\host\share" path from a file:// page is an SMB request that can leak credentials. So
+    // they are not relative links, whatever the settings. A file link whose PDF path names a
+    // volume, "/fileserver.example/share/report.pdf", becomes one of those on Windows.
+    [Test]
+    public async Task LinksToOtherHostsAreNotRelative()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /Outlines 20 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R 11 0 R 12 0 R 13 0 R 14 0 R 15 0 R 16 0 R] >>",
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [72 700 300 720] /A << /S /URI /URI (//evil.example/one) >> >>",
+            [11] = "<< /Type /Annot /Subtype /Link /Rect [72 670 300 690] /A << /S /URI /URI (\\\\\\\\evil.example\\\\two) >> >>",
+            [12] = "<< /Type /Annot /Subtype /Link /Rect [72 640 300 660] /A << /S /URI /URI (/\\\\evil.example/three) >> >>",
+            [13] = "<< /Type /Annot /Subtype /Link /Rect [72 610 300 630] /A << /S /URI /URI ( \\\\/evil.example/four) >> >>",
+            [14] = "<< /Type /Annot /Subtype /Link /Rect [72 580 300 600] /A << /S /GoToR /F (/fileserver.example/share/report.pdf) /D [0 /Fit] >> >>",
+            [15] = "<< /Type /Annot /Subtype /Link /Rect [72 550 300 570] /A << /S /URI /URI (docs/other.pdf) >> >>",
+            [16] = "<< /Type /Annot /Subtype /Link /Rect [72 520 300 540] /A << /S /URI /URI (/same/host.pdf) >> >>",
+            [20] = "<< /Type /Outlines /First 21 0 R /Last 21 0 R /Count 1 >>",
+            [21] = "<< /Title (Share) /Parent 20 0 R /A << /S /URI /URI (\\\\\\\\evil.example\\\\share\\\\doc) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        foreach (var schemes in new[] { HtmlOptions.DefaultLinkSchemes, ["https"], [] })
+        {
+            var html = document.RenderHtml(
+                textOnly with
+                {
+                    AllowedLinkSchemes = schemes
+                });
+            await Assert.That(html).DoesNotContain("evil.example");
+            await Assert.That(html).DoesNotContain("fileserver.example");
+            await Assert.That(html).Contains("<li><span>Share</span></li>");
+            // References within the same host are still relative links.
+            await Assert.That(html).Contains("<a href=\"docs/other.pdf\">");
+            await Assert.That(html).Contains("<a href=\"/same/host.pdf\">");
+        }
+    }
+
+    // A link may name any two opposite corners of its rectangle, so these are reversed.
+    [Test]
+    public async Task LinkWithReversedRectangle()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R] >>",
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [300 720 72 690] /A << /S /URI /URI (https://example.com/reversed) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        using var page = document.LoadPage(0);
+        await Assert.That(page.GetLinks()[0].Rectangle).IsEqualTo(new PdfRectangle(72, 690, 300, 720));
+        var html = page.RenderHtml(textOnly);
+        await Assert.That(html).Contains("<a href=\"https://example.com/reversed\"><rect x=\"72\" y=\"72\" width=\"228\" height=\"30\" fill=\"transparent\"/></a>");
+    }
+
+    // A URL written in the text keeps its link when a link annotation elsewhere on the page,
+    // in a footer say, leads to the same URL; only one over the URL itself makes it redundant.
+    [Test]
+    public async Task WebLinkKeptBesideAnnotationToTheSameUrl()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [10 0 R 11 0 R] >>",
+            [4] = CraftedPdf.Stream("BT /F1 12 Tf 72 700 Td (See https://example.com/x for more) Tj ET BT /F1 12 Tf 72 400 Td (Also https://example.com/y here) Tj ET"),
+            [5] = CraftedPdf.Helvetica,
+            // In a footer, far from the first URL's text.
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [72 40 300 60] /A << /S /URI /URI (https://example.com/x) >> >>",
+            // Over the second URL's text.
+            [11] = "<< /Type /Annot /Subtype /Link /Rect [90 395 230 412] /A << /S /URI /URI (https://example.com/y) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html.Split("<a href=\"https://example.com/x\">").Length - 1).IsEqualTo(2);
+        await Assert.That(html.Split("<a href=\"https://example.com/y\">").Length - 1).IsEqualTo(1);
     }
 
     [Test]
@@ -1020,7 +1105,7 @@ public class HtmlTests
     public async Task SkippedSurrogatePairLeavesNoHalf()
     {
         // The ToUnicode map reads "A" as U+1F600, beyond the Basic Multilingual Plane, which
-        // PDFium on Windows reports as two characters, the halves of a surrogate pair. Drawn
+        // PDFium reports as two characters, the halves of a surrogate pair. Drawn
         // invisibly after visible text, visible HTML leaves the pair out, and must leave out
         // both halves rather than tack the second onto the visible text.
         const string toUnicode =
@@ -1044,7 +1129,7 @@ public class HtmlTests
         using var document = PdfiumDocument.Load(pdf);
         var visible = document.RenderPageHtml(0, textOnly);
         await Assert.That(visible).Contains(">Hello</text>");
-        await Assert.That(visible).DoesNotContain("�");
+        await Assert.That(visible).DoesNotContain("\uFFFD");
         // The overlay keeps invisible text, so it has the whole pair.
         var overlay = document.RenderPageHtml(
             0,
@@ -1053,6 +1138,168 @@ public class HtmlTests
                 ImageUrl = (_, _) => "page.png"
             });
         await Assert.That(overlay).Contains("\U0001F600");
+    }
+
+    // A font whose ToUnicode map reads "b" as a combining acute accent with no advance of its
+    // own, "c" as a C1 control and "d" as a noncharacter.
+    static byte[] MarksPdf(string content) =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(content),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /FirstChar 97 /LastChar 100 /Widths [556 0 556 556] /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(
+                """
+                /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+                /CMapName /Marks def /CMapType 2 def
+                1 begincodespacerange <00> <FF> endcodespacerange
+                4 beginbfchar <61> <0061> <62> <0301> <63> <0095> <64> <FFFE> endbfchar
+                endcmap CMapName currentdict /CMap defineresource pop end end
+                """)
+        });
+
+    // A mark with no advance takes up no length: the run is as long as its "a", not half an em
+    // longer, which would stretch the "a" to fill it.
+    [Test]
+    public async Task ZeroAdvanceMarkAddsNoLength()
+    {
+        using var document = PdfiumDocument.Load(MarksPdf("BT /F1 20 Tf 72 700 Td (ab) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("textLength=\"11.12\"");
+        await Assert.That(html).Contains(">a\u0301</text>");
+    }
+
+    // Control characters beyond ASCII (C1) and noncharacters are not allowed in HTML.
+    [Test]
+    public async Task ControlCharactersLeftOut()
+    {
+        using var document = PdfiumDocument.Load(MarksPdf("BT /F1 20 Tf 72 700 Td (acda) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains(">aa</text>");
+        await Assert.That(html).DoesNotContain("\u0095");
+        await Assert.That(html).DoesNotContain("\uFFFE");
+    }
+
+    // Stretched to three times its width, each "W" is about 2.8 ems wide: a run's length is not
+    // capped at two ems a character.
+    [Test]
+    public async Task WideGlyphsKeepTheirAdvance()
+    {
+        var pdf = SinglePage("BT /F1 20 Tf 300 Tz 72 700 Td (WW) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("textLength=\"113.28\"");
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+    }
+
+    // A page far larger than any paper still maps text to where it is drawn.
+    [Test]
+    public async Task HugePage()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 3000000 3000000] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 12 Tf 72 700 Td (Text) Tj ET"),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("<text x=\"72\" y=\"2999300\"");
+    }
+
+    // A font whose ToUnicode map reads a, b, c and d as the Hebrew letters alef, bet, gimel
+    // and dalet, so "abcd" drawn left to right is Hebrew, which PDFium gives in reading order:
+    // from its right-hand end.
+    internal static byte[] HebrewPdf(string content) =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(content),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(
+                """
+                /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+                /CMapName /Hebrew def /CMapType 2 def
+                1 begincodespacerange <00> <FF> endcodespacerange
+                1 beginbfrange <20> <60> <0020> endbfrange
+                4 beginbfchar <61> <05D0> <62> <05D1> <63> <05D2> <64> <05D3> endbfchar
+                endcmap CMapName currentdict /CMap defineresource pop end end
+                """)
+        });
+
+    // Right-to-left text stays one run, in reading order, written right to left from where it
+    // starts: its right-hand end.
+    [Test]
+    public async Task RightToLeftTextIsOneRun()
+    {
+        using var document = PdfiumDocument.Load(HebrewPdf("BT /F1 20 Tf 72 700 Td (abcd abcd) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+        await Assert.That(html).Contains("direction=\"rtl\"");
+        await Assert.That(html).Contains(">\u05D3\u05D2\u05D1\u05D0 \u05D3\u05D2\u05D1\u05D0</text>");
+    }
+
+    // A nested list item: the indents after "1." and after "a)" each end a run, so neither is
+    // spread over the rest of the line.
+    [Test]
+    public async Task NestedIndentsAreSeparateRuns()
+    {
+        var pdf = SinglePage("BT /F1 12 Tf 1 0 0 1 72 700 Tm (1.) Tj 1 0 0 1 96 700 Tm (a\\)) Tj 1 0 0 1 120 700 Tm (Nested item text here) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("<text x=\"72\" y=\"92\" font-size=\"12\" textLength=\"10.01\" lengthAdjust=\"spacingAndGlyphs\" font-family=\"'Helvetica', sans-serif\">1.</text>");
+        await Assert.That(html).Contains("<text x=\"96\" y=\"92\"");
+        await Assert.That(html).Contains(">a)</text>");
+        await Assert.That(html).Contains("<text x=\"120\" y=\"92\"");
+        await Assert.That(html).Contains(">Nested item text here</text>");
+    }
+
+    // Text whose matrix flips its glyphs is drawn flipped: mirrored left to right, and
+    // upside down.
+    [Test]
+    public async Task MirroredText()
+    {
+        var pdf = SinglePage("BT /F1 20 Tf -1 0 0 1 300 700 Tm (Mirror) Tj ET BT /F1 20 Tf 1 0 0 -1 72 600 Tm (Flipped) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("transform=\"rotate(-180 300 92) translate(300 92) scale(1 -1) translate(-300 -92)\"");
+        await Assert.That(html).Contains("transform=\"translate(72 192) scale(1 -1) translate(-72 -192)\"");
+    }
+
+    // A monospaced font's space is exactly 0.6 em, and a double space exactly twice a single
+    // one, right on the thresholds for a wide space; rounding must not split such lines.
+    [Test]
+    [Arguments(7)]
+    [Arguments(9)]
+    [Arguments(10)]
+    [Arguments(10.5)]
+    [Arguments(12)]
+    [Arguments(13.3)]
+    [Arguments(14)]
+    [Arguments(16)]
+    [Arguments(17)]
+    public async Task SpacesOnTheThresholdsKeepOneRun(double size)
+    {
+        var sizeText = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>",
+            [4] = CraftedPdf.Stream($"BT /F2 {sizeText} Tf 72 700 Td (Hello world) Tj ET BT /F1 {sizeText} Tf 72 600 Td (End.  Next words here) Tj ET"),
+            [5] = CraftedPdf.Helvetica,
+            [6] = "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains(">Hello world</text>");
+        await Assert.That(html).Contains(">End. Next words here</text>");
     }
 
     [Test]

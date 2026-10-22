@@ -2,14 +2,25 @@ namespace Morph.PDFium;
 
 public sealed partial class PdfiumDocument
 {
-    // Handles removed by DeleteAttachment. PDFium keeps the underlying object readable after
-    // it leaves the name tree, so a PdfAttachment for it would otherwise go on returning the
-    // deleted file's name and data as though it were still attached.
-    readonly HashSet<IntPtr> deletedAttachments = [];
+    // The live attachments' handles, each with the token their PdfAttachments share. Deleting
+    // an attachment marks its token deleted and drops it from here. PDFium may keep the object
+    // readable after it leaves the name tree, or free it and hand its address to a later
+    // attachment, so deletion is tracked on the token rather than the address: a deleted
+    // attachment never answers for a new one at its address, and that new one gets a token of
+    // its own, so is not taken for deleted.
+    readonly Dictionary<IntPtr, AttachmentToken> attachmentTokens = [];
 
     // Caller must hold PdfiumNative.Sync.
-    internal bool IsAttachmentDeleted(IntPtr attachment) =>
-        deletedAttachments.Contains(attachment);
+    PdfAttachment WrapAttachment(IntPtr handle)
+    {
+        if (!attachmentTokens.TryGetValue(handle, out var token))
+        {
+            token = new();
+            attachmentTokens[handle] = token;
+        }
+
+        return new(this, handle, token);
+    }
 
     /// <summary>The number of embedded file attachments in the document.</summary>
     public int AttachmentCount
@@ -42,7 +53,7 @@ public sealed partial class PdfiumDocument
                 var handle = PdfiumNative.FPDFDoc_GetAttachment(doc, index);
                 if (handle != IntPtr.Zero)
                 {
-                    attachments.Add(new(this, handle));
+                    attachments.Add(WrapAttachment(handle));
                 }
             }
 
@@ -75,9 +86,7 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException($"Failed to write data for attachment '{name}'");
             }
 
-            // In case PDFium reuses the address of an attachment deleted earlier.
-            deletedAttachments.Remove(handle);
-            return new(this, handle);
+            return WrapAttachment(handle);
         }
     }
 
@@ -108,7 +117,10 @@ public sealed partial class PdfiumDocument
                 throw new PdfiumException($"Failed to delete attachment at index {index}");
             }
 
-            deletedAttachments.Add(attachment);
+            if (attachmentTokens.Remove(attachment, out var token))
+            {
+                token.Deleted = true;
+            }
         }
     }
 }

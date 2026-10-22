@@ -54,7 +54,8 @@ static partial class PdfiumNative
     internal static partial bool FPDFPath_SetDrawMode(IntPtr path, int fillMode, [MarshalAs(UnmanagedType.Bool)] bool stroke);
 
     [LibraryImport(library)]
-    internal static partial void FPDFPage_InsertObject(IntPtr page, IntPtr pageObject);
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPage_InsertObject(IntPtr page, IntPtr pageObject);
 
     [LibraryImport(library)]
     internal static partial void FPDFPageObj_Destroy(IntPtr pageObject);

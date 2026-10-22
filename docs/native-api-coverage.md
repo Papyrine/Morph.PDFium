@@ -1,6 +1,6 @@
 # PDFium native API coverage
 
-The bundled `pdfium.dll` (bblanchon.PDFium 151.0.7881) exports **460** functions —
+The bundled `pdfium.dll` (bblanchon.PDFium 158.0.8111) exports **471** functions —
 the complete public PDFium C API. Morph.PDFium currently binds **163** of them and
 surfaces the meaningful subset through a managed API. This document records what is
 wrapped, and — more importantly — what is **not yet implemented**, with the reason.
@@ -38,7 +38,7 @@ bitmaps, which makes several native facilities moot.
 |--------------|-------|--------------------|
 | `FPDFAvail_*` (`fpdf_dataavail.h`) | 8 | Progressive availability for linearized/streamed loading. The wrapper loads the full byte buffer up front, so availability is always "ready". |
 | `FPDF_RenderPageBitmap_Start` / `_Continue` / `_Close` / `…WithColorScheme_Start` (`fpdf_progressive.h`) | 4 | Incremental/abortable rendering. Rendering here is synchronous under the global lock. |
-| System font providers — `FPDF_SetSystemFontInfo`, `FPDF_GetDefaultSystemFontInfo`, `FPDF_AddInstalledFont`, `FPDF_GetDefaultTTFMap*`, `FPDF_FreeDefaultSystemFontInfo` (`fpdf_sysfontinfo.h`) | ~7 | Custom native font-discovery hooks; PDFium's built-in font handling suffices for deterministic rendering. |
+| System font providers — `FPDF_SetSystemFontInfo`, `FPDF_GetDefaultSystemFontInfo`, `FPDF_AddInstalledFont`, `FPDF_GetDefaultTTFMap*`, `FPDF_FreeDefaultSystemFontInfo` (`fpdf_sysfontinfo.h`) | ~7 | Custom native font-discovery hooks. PDFium's built-in font handling suffices: rendering is deterministic for documents whose fonts are embedded or among the standard 14; any other font is substituted from the system's fonts, which vary by machine. |
 | `FSDK_*`, `FPDF_BStr_*` (`fpdf_ext.h`) | 3+ | Unsupported-object / localtime / XFA string handlers — embedder infrastructure with no managed equivalent. |
 | `FPDF_LoadXFA`, `FPDF_GetXFAPacket*` | 4 | XFA forms — not supported by the non-XFA build. |
 | `FPDFJavaScriptAction_*`, document JavaScript | 2 | Document-level JavaScript can be *enumerated* but not *executed* without V8; left out until there is a use case. |

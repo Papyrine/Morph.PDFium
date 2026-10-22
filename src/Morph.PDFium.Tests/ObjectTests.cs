@@ -1,3 +1,5 @@
+using System.Text;
+
 public class ObjectTests
 {
     [Test]
@@ -96,10 +98,46 @@ public class ObjectTests
         await Assert.That(reloadedPage.GetText()).IsEqualTo(text);
     }
 
+    // Every character a standard text font can write: printable ASCII, Latin-1 bar its
+    // no-break space and soft hyphen, and the Windows-1252 extras.
+    [Test]
+    public async Task AddTextRoundTripsEveryEncodableCharacter()
+    {
+        var characters = new StringBuilder();
+        for (var character = ' '; character <= 'ÿ'; character++)
+        {
+            if (character is (>= ' ' and <= '~') or (>= '¡' and <= 'ÿ') && character != '\u00AD')
+            {
+                characters.Append(character);
+            }
+        }
+
+        characters.Append("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
+        var text = characters.ToString();
+        using var document = PdfiumDocument.CreateNew();
+        using (var page = document.NewPage(0, 4000, 100))
+        {
+            page.AddText(text, 10, 50, fontSize: 8);
+        }
+
+        using var reloaded = PdfiumDocument.Load(document.Save());
+        using var reloadedPage = reloaded.LoadPage(0);
+        await Assert.That(reloadedPage.GetText()).IsEqualTo(text);
+    }
+
     [Test]
     [Arguments("中文")]
     [Arguments("Ж")]
     [Arguments("ok 😀")]
+    // Control characters, C0 and C1, which PDFium writes as ÿ.
+    [Arguments("tab\there")]
+    [Arguments("new\nline")]
+    [Arguments("a\u0001b")]
+    [Arguments("a\u007Fb")]
+    [Arguments("a\u0085b")]
+    // The no-break space and soft hyphen, which PDFium also writes as ÿ.
+    [Arguments("no\u00A0break")]
+    [Arguments("soft\u00ADhyphen")]
     public async Task AddTextRejectsCharactersTheFontCannotEncode(string text)
     {
         using var document = PdfiumDocument.CreateNew();
