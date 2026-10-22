@@ -60,8 +60,7 @@ public class HtmlBrowserTests
         };
 
     // The overlay page is its image with transparent text and links over it, so the browser
-    // should show exactly the PNG PDFium rendered: same size, and the same pixels bar the odd
-    // one where Chromium blends differently.
+    // should show exactly the PNG PDFium rendered: the same size, and the same pixels.
     [Test]
     [MethodDataSource(nameof(Pages))]
     public async Task OverlayLooksLikeTheRender(string name)
@@ -69,9 +68,9 @@ public class HtmlBrowserTests
         var (document, index) = Load(name);
         using var _ = document;
         var screenshot = await Screenshot(document.RenderPageHtml(index), 1);
-        var comparison = await Compare(screenshot, document.RenderPage(index));
+        var comparison = await Compare(screenshot, document.RenderPage(index), IsFractional(document, index, 96));
         await Assert.That(comparison.SameSize).IsTrue();
-        await Assert.That(comparison.DifferingFraction).IsLessThan(0.001);
+        await Assert.That(comparison.DifferingFraction).IsEqualTo(0);
     }
 
     // At twice the resolution, in a browser at twice the device scale, the page is still the
@@ -92,9 +91,9 @@ public class HtmlBrowserTests
                     Render = render
                 }),
             2);
-        var comparison = await Compare(screenshot, document.RenderPage(0, render));
+        var comparison = await Compare(screenshot, document.RenderPage(0, render), IsFractional(document, 0, 192));
         await Assert.That(comparison.SameSize).IsTrue();
-        await Assert.That(comparison.DifferingFraction).IsLessThan(0.001);
+        await Assert.That(comparison.DifferingFraction).IsEqualTo(0);
     }
 
     // Visible text is drawn in the browser's fonts, so its pixels differ from PDFium's, but
@@ -114,14 +113,15 @@ public class HtmlBrowserTests
                 Text = HtmlTextMode.Visible
             });
         var screenshot = await Screenshot(html, 1);
-        var comparison = await Compare(screenshot, document.RenderPage(index));
+        var comparison = await Compare(screenshot, document.RenderPage(index), IsFractional(document, index, 96));
         await Assert.That(comparison.SameSize).IsTrue();
         await Assert.That(comparison.InkCorrelation).IsGreaterThan(0.85);
     }
 
     // Visible text over the image rendered without it: the images and drawings are PDFium's
-    // own pixels, and the text is in the browser's fonts, so the page should look like the
-    // render at least as closely as text-only HTML does.
+    // own pixels, and the text is in the browser's fonts. Both images share the background, so
+    // it is taken out of both before comparing, which leaves the text alone: on the NASA photo
+    // page the background by itself correlates 0.96 with the render.
     [Test]
     [MethodDataSource(nameof(Pages))]
     public async Task VisibleTextOverTheBackgroundLooksLikeTheRender(string name)
@@ -135,9 +135,39 @@ public class HtmlBrowserTests
                 Text = HtmlTextMode.Visible
             });
         var screenshot = await Screenshot(html, 1);
-        var comparison = await Compare(screenshot, document.RenderPage(index));
+        byte[] background;
+        using (var page = document.LoadPage(index))
+        {
+            background = page.RenderWithoutText(new(), false);
+        }
+
+        var comparison = await Compare(screenshot, document.RenderPage(index), IsFractional(document, index, 96), background);
         await Assert.That(comparison.SameSize).IsTrue();
         await Assert.That(comparison.InkCorrelation).IsGreaterThan(0.85);
+    }
+
+    // Taking out the background must leave the comparison resting on the text: the NASA photo
+    // page with its text hidden, which would score 0.96 against the whole render, must fail.
+    [Test]
+    public async Task TextInkOverTheBackgroundDetectsMissingText()
+    {
+        var (document, index) = Load("nasa 1");
+        using var _ = document;
+        var html = document.RenderPageHtml(
+            index,
+            new()
+            {
+                Text = HtmlTextMode.Visible
+            });
+        var hidden = html.Replace("<svg ", "<svg visibility=\"hidden\" ");
+        byte[] background;
+        using (var page = document.LoadPage(index))
+        {
+            background = page.RenderWithoutText(new(), false);
+        }
+
+        var comparison = await Compare(await Screenshot(hidden, 1), document.RenderPage(index), false, background);
+        await Assert.That(comparison.InkCorrelation > 0.85).IsFalse();
     }
 
     // The correlation must tell placement apart: the same text moved half a line down
@@ -155,7 +185,7 @@ public class HtmlBrowserTests
             });
         var shifted = html.Replace("<svg ", "<svg transform=\"translate(0 7)\" ");
         var screenshot = await Screenshot(shifted, 1);
-        var comparison = await Compare(screenshot, document.RenderPage(0));
+        var comparison = await Compare(screenshot, document.RenderPage(0), false);
         await Assert.That(comparison.InkCorrelation).IsLessThan(0.6);
     }
 
@@ -190,7 +220,7 @@ public class HtmlBrowserTests
         await Assert.That(printed.PageCount).IsEqualTo(document.PageCount);
         for (var index = 0; index < document.PageCount; index++)
         {
-            var comparison = await Compare(printed.RenderPage(index), document.RenderPage(index));
+            var comparison = await Compare(printed.RenderPage(index), document.RenderPage(index), true);
             await Assert.That(comparison.SameSize).IsTrue();
             await Assert.That(comparison.InkCorrelation).IsGreaterThan(0.95);
         }
@@ -264,9 +294,10 @@ public class HtmlBrowserTests
                 {
                     Text = HtmlTextMode.Visible
                 });
-            var overlay = await Compare(await Screenshot(overlayHtml, 1), render);
-            var visible = await Compare(await Screenshot(visibleHtml, 1), render);
-            var background = await Compare(await Screenshot(backgroundHtml, 1), render);
+            var slack = IsFractional(document, index, 96);
+            var overlay = await Compare(await Screenshot(overlayHtml, 1), render, slack);
+            var visible = await Compare(await Screenshot(visibleHtml, 1), render, slack);
+            var background = await Compare(await Screenshot(backgroundHtml, 1), render, slack);
             Console.WriteLine($"Page {index + 1}: overlay {overlay}; ink correlation of visible text {visible.InkCorrelation:0.####}, over the background {background.InkCorrelation:0.####}");
             if (!overlay.SameSize || overlay.DifferingFraction >= 0.001)
             {
@@ -333,7 +364,7 @@ public class HtmlBrowserTests
 
     const string compareScript =
         """
-        async ([first, second]) => {
+        async ([first, second, background, slack]) => {
           const load = source => new Promise((resolve, reject) => {
             const image = new Image();
             image.onload = () => resolve(image);
@@ -343,9 +374,10 @@ public class HtmlBrowserTests
           const [a, b] = await Promise.all([load(first), load(second)]);
           const sizes = `${a.width}x${a.height} vs ${b.width}x${b.height}`;
           // A page whose size is not a whole number of pixels is rounded up by the browser's
-          // screenshot and to the nearest pixel by PDFium, so allow a pixel either way and
-          // compare the area both cover.
-          if (Math.abs(a.width - b.width) > 1 || Math.abs(a.height - b.height) > 1) {
+          // screenshot and to the nearest pixel by PDFium, so for one of those, and only those,
+          // allow a pixel either way and compare the area both cover.
+          const allowed = slack ? 1 : 0;
+          if (Math.abs(a.width - b.width) > allowed || Math.abs(a.height - b.height) > allowed) {
             return { sameSize: false, differingFraction: 1, inkCorrelation: 0, sizes };
           }
 
@@ -361,21 +393,25 @@ public class HtmlBrowserTests
           };
           const pa = pixels(a);
           const pb = pixels(b);
+          const pc = background ? pixels(await load(background)) : null;
 
-          // A pixel differs when any channel is off by more than an eighth.
+          // A pixel differs when any channel is off by more than rounding.
           let differing = 0;
           for (let i = 0; i < pa.length; i += 4) {
-            if (Math.abs(pa[i] - pb[i]) > 32 || Math.abs(pa[i + 1] - pb[i + 1]) > 32 || Math.abs(pa[i + 2] - pb[i + 2]) > 32) {
+            if (Math.abs(pa[i] - pb[i]) > 2 || Math.abs(pa[i + 1] - pb[i + 1]) > 2 || Math.abs(pa[i + 2] - pb[i + 2]) > 2) {
               differing++;
             }
           }
 
-          // Ink is darkness, blurred by a box a few pixels across each way.
+          // Ink is darkness, blurred by a box a few pixels across each way. Given the page's
+          // background, only what lies over it counts: the text, without the images and
+          // drawings both images share, which would otherwise correlate on their own.
           const radius = 3;
+          const darkness = (data, i) => 1 - (data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114) / 255;
           const ink = data => {
             const values = new Float64Array(width * height);
             for (let i = 0; i < values.length; i++) {
-              values[i] = 1 - (data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114) / 255;
+              values[i] = darkness(data, i) - (pc ? darkness(pc, i) : 0);
             }
 
             const blurred = new Float64Array(values.length);
@@ -427,11 +463,22 @@ public class HtmlBrowserTests
         }
         """;
 
-    static async Task<Comparison> Compare(byte[] screenshot, byte[] render)
+    // Whether the page's size at this resolution is a fractional number of pixels, which the
+    // browser and PDFium round differently.
+    static bool IsFractional(PdfiumDocument document, int index, double dpi)
+    {
+        var size = document.GetPageSize(index);
+        var width = size.Width * dpi / 72;
+        var height = size.Height * dpi / 72;
+        return Math.Abs(width - Math.Round(width)) > 1e-6 || Math.Abs(height - Math.Round(height)) > 1e-6;
+    }
+
+    static async Task<Comparison> Compare(byte[] screenshot, byte[] render, bool slack, byte[]? background = null)
     {
         await using var context = await browser.NewContextAsync();
         var page = await context.NewPageAsync();
-        var result = await page.EvaluateAsync<Comparison>(compareScript, new[] { Convert.ToBase64String(screenshot), Convert.ToBase64String(render) });
+        object?[] arguments = [Convert.ToBase64String(screenshot), Convert.ToBase64String(render), background is null ? null : Convert.ToBase64String(background), slack];
+        var result = await page.EvaluateAsync<Comparison>(compareScript, arguments);
         // Shown with the test's output, to see how close a page came.
         Console.WriteLine(result);
         return result;
