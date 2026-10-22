@@ -87,12 +87,13 @@ public sealed partial class PdfiumDocument
     /// Like <see cref="ProcessPages{T}(Func{PdfPage,T})"/>, but hands each page's result to
     /// <paramref name="consume"/> in page order as soon as it and every page before it are
     /// done, instead of collecting them all, so only a window of results is held at once.
-    /// <paramref name="consume"/> runs on the worker threads, one call at a time.
+    /// <paramref name="consume"/> runs on the worker threads, one call at a time. Only the
+    /// first <paramref name="count"/> pages are processed.
     /// </summary>
-    internal void ProcessPagesInOrder<T>(Func<PdfPage, T> process, Action<T> consume)
+    internal void ProcessPagesInOrder<T>(int count, Func<PdfPage, T> process, Action<T> consume)
     {
         ThrowIfDisposed();
-        var count = pageCount;
+        count = Math.Min(count, pageCount);
         var workers = Math.Min(Environment.ProcessorCount, count);
         // Pages are handed out in order, and a worker takes one only while fewer than
         // PageWindow are started but not yet consumed. So the results waiting on a slow page

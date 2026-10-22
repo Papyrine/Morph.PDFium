@@ -56,7 +56,13 @@ public sealed partial class PdfPage
     /// </remarks>
     internal byte[] RenderWithoutText(RenderOptions options, bool inPlace)
     {
-        RenderedPixels rendered;
+        using var rendered = RenderPixelsWithoutText(options, inPlace);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+    }
+
+    // RenderWithoutText's pixels, before they are encoded.
+    internal RenderedPixels RenderPixelsWithoutText(RenderOptions options, bool inPlace)
+    {
         lock (PdfiumNative.Sync)
         {
             var current = ValidHandle();
@@ -86,7 +92,7 @@ public sealed partial class PdfPage
                     Width = PdfiumNative.FPDF_GetPageWidthF(page),
                     Height = PdfiumNative.FPDF_GetPageHeightF(page)
                 };
-                rendered = PdfiumDocument.RenderLoadedPage(page, size, Index, options.Dpi, options.ToFlags() | PdfiumNative.ReverseByteOrder, options.ToFillColor(), null, IntPtr.Zero);
+                return PdfiumDocument.RenderLoadedPage(page, size, Index, options.Dpi, options.ToFlags() | PdfiumNative.ReverseByteOrder, options.ToFillColor(), null, IntPtr.Zero);
             }
             finally
             {
@@ -95,11 +101,6 @@ public sealed partial class PdfPage
                     PdfiumNative.FPDF_ClosePage(page);
                 }
             }
-        }
-
-        using (rendered)
-        {
-            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
         }
     }
 

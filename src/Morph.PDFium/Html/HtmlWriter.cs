@@ -286,13 +286,14 @@ static class HtmlWriter
     /// <summary>
     /// Where a link or bookmark should point: a page of this document by its id, a URL, or a
     /// file beside this one. Null for a target HTML cannot reach, or should not: a launch, a
-    /// file embedded in the PDF, or a URL that <see cref="SafeUrl"/> rejects.
+    /// file embedded in the PDF, a URL that <see cref="SafeUrl"/> rejects, or a page past
+    /// <see cref="HtmlOptions.MaxPages"/>.
     /// </summary>
     public static string? Href(PdfDestination? destination, PdfAction? action, HtmlOptions options)
     {
         if (destination is { PageIndex: >= 0 } local)
         {
-            return "#" + PageId(options.PageIdPrefix, local.PageIndex);
+            return PageHref(local.PageIndex, options);
         }
 
         if (action is not { } target)
@@ -303,10 +304,20 @@ static class HtmlWriter
         return target.Type switch
         {
             PdfActionType.Uri => SafeUrl(target.Uri, options),
-            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => "#" + PageId(options.PageIdPrefix, goTo.PageIndex),
+            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => PageHref(goTo.PageIndex, options),
             PdfActionType.RemoteGoTo => SafeUrl(target.FilePath, options),
             _ => null
         };
+    }
+
+    static string? PageHref(int index, HtmlOptions options)
+    {
+        if (index >= options.MaxPages)
+        {
+            return null;
+        }
+
+        return "#" + PageId(options.PageIdPrefix, index);
     }
 
     /// <summary>

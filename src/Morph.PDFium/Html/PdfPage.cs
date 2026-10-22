@@ -22,7 +22,12 @@ public sealed partial class PdfPage
         var layout = ReadHtmlLayout(options);
         string? imageUrl = null;
         byte[]? png = null;
-        if (options.IncludeImage)
+        if (options.IncludeImage && options.ImageUrlFromPixels is { } fromPixels)
+        {
+            using var rendered = RenderHtmlPixels(options, owned);
+            imageUrl = fromPixels(layout.Index, new(rendered.Pixels, rendered.Width, rendered.Height, options.Render.Dpi));
+        }
+        else if (options.IncludeImage)
         {
             // Visible text is drawn over the image, so the image leaves it out rather than show
             // it twice.
@@ -35,6 +40,19 @@ public sealed partial class PdfPage
         }
 
         return HtmlWriter.Page(layout, imageUrl, png, options);
+    }
+
+    // The page's image as pixels, for ImageUrlFromPixels: without its text under visible text,
+    // as RenderHtmlPage's PNG is.
+    RenderedPixels RenderHtmlPixels(HtmlOptions options, bool owned)
+    {
+        var render = options.Render;
+        if (options.Text == HtmlTextMode.Visible)
+        {
+            return RenderPixelsWithoutText(render, owned);
+        }
+
+        return RenderPixels(render.Dpi, render.ToFlags(), render.ToFillColor(), null);
     }
 
     HtmlPageLayout ReadHtmlLayout(HtmlOptions options)

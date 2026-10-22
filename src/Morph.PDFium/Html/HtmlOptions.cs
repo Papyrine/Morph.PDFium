@@ -82,6 +82,16 @@ public sealed record HtmlOptions
     public Func<int, byte[], string>? ImageUrl { get; init; }
 
     /// <summary>
+    /// Given a page's zero-based index and its rendered pixels, returns the URL for the page's
+    /// image, as <see cref="ImageUrl"/> does, but before any PNG is encoded: for an image in
+    /// another format, such as WebP or JPEG, encoded from the pixels by the caller and written
+    /// beside the HTML or returned as a data: URI. The pixels can only be used during the
+    /// call. Rendering a whole document calls this from several threads at once. Set this or
+    /// <see cref="ImageUrl"/>, not both.
+    /// </summary>
+    public PageImageUrl? ImageUrlFromPixels { get; init; }
+
+    /// <summary>
     /// Whether the images of pages after the first load only as they are scrolled near
     /// (<c>loading="lazy"</c>), so a long document opens quickly. On by default. Turn it off
     /// for HTML that is printed or captured without being scrolled through, in a browser that
@@ -89,8 +99,23 @@ public sealed record HtmlOptions
     /// </summary>
     public bool LazyLoadImages { get; init; } = true;
 
+    /// <summary>
+    /// The most pages a whole document's HTML holds: only its first this many pages are
+    /// rendered, and the document itself is left as it is. Null, the default, renders every
+    /// page. Only the pages rendered get a printed page size, and a bookmark, or a link on a
+    /// page, that leads to a page past the limit is kept as plain text or left out, rather than
+    /// pointing at a page id the HTML does not have. A single page renders whatever this is,
+    /// though its links to pages past the limit are left out too.
+    /// </summary>
+    public int? MaxPages { get; init; }
+
     internal void Validate(string paramName)
     {
+        if (MaxPages is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(paramName, MaxPages, "MaxPages must be positive");
+        }
+
         if (Render is null)
         {
             throw new ArgumentException("Render must not be null", paramName);
@@ -112,6 +137,11 @@ public sealed record HtmlOptions
             {
                 throw new ArgumentException("AllowedLinkSchemes must not hold a null or empty scheme", paramName);
             }
+        }
+
+        if (ImageUrl is not null && ImageUrlFromPixels is not null)
+        {
+            throw new ArgumentException("Set only one of ImageUrl and ImageUrlFromPixels", paramName);
         }
 
         if (!Enum.IsDefined(Text))
