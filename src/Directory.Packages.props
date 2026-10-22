@@ -9,6 +9,7 @@
     <PackageVersion Include="bblanchon.PDFium.macOS" Version="158.0.8111" />
     <PackageVersion Include="bblanchon.PDFium.Win32" Version="158.0.8111" />
     <PackageVersion Include="MarkdownSnippets.MsBuild" Version="28.5.1" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="ProjectDefaults" Version="1.0.184" />
     <PackageVersion Include="ProjectFiles" Version="1.6.0" />

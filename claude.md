@@ -49,6 +49,7 @@ Style note: only public types get a namespace declaration (`Morph.PDFium`); inte
 ## Testing
 
 - Snapshot tests use Verify.TUnit with SSIM comparison for PNGs (`VerifierSettings.UseSsimForPng()`); verified PNG/txt files are committed beside the tests.
+- `HtmlBrowserTests` renders the HTML in headless Chromium via Microsoft.Playwright (installing Chromium on first run; CI caches `ms-playwright`) and compares screenshots with PDFium's PNGs inside the browser, which also decodes the PNGs. Overlay pages must match pixel for pixel. Visible text is checked by correlating blurred ink, since the browser's fonts differ. A page whose size isn't a whole number of pixels may differ by one pixel in size.
 - Test assets `sample.pdf` (1 page) and `multi-page.pdf` (4 pages), both US Letter, were produced by [Morph](https://github.com/Papyrine/Morph)'s PDF exporter with embedded font subsets, so rendering is machine-independent.
 - PDFium rasterization is deterministic for a pinned bblanchon.PDFium version. Bumping those packages may shift pixels — expect to regenerate `*.verified.png` files in the same commit. The three `bblanchon.PDFium.*` packages must stay on the same version.
 

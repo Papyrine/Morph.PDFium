@@ -132,7 +132,7 @@ public class HtmlTests
     // Two pages. The first links to the second in both ways a PDF can, and to a URL, another
     // file, an embedded file, an application and a script, of which HTML should only get the
     // first four. Its text also holds a URL with no link annotation over it.
-    static byte[] PdfWithLinks() =>
+    internal static byte[] PdfWithLinks() =>
         CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R /Outlines 20 0 R /Lang (en-GB) >>",
@@ -231,7 +231,7 @@ public class HtmlTests
 
     // A page turned a quarter turn, with a crop box away from the origin, holding a line of
     // text and a link.
-    static byte[] RotatedPdf() =>
+    internal static byte[] RotatedPdf() =>
         CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R >>",
