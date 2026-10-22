@@ -61,6 +61,16 @@ public sealed record HtmlOptions
     public Func<int, byte[], string>? ImageUrl { get; init; }
 
     /// <summary>
+    /// Given a page's zero-based index and its rendered pixels, returns the URL for the page's
+    /// image, as <see cref="ImageUrl"/> does, but before any PNG is encoded: for an image in
+    /// another format, such as WebP or JPEG, encoded from the pixels by the caller and written
+    /// beside the HTML or returned as a data: URI. The pixels can only be used during the
+    /// call. Rendering a whole document calls this from several threads at once. Set this or
+    /// <see cref="ImageUrl"/>, not both.
+    /// </summary>
+    public PageImageUrl? ImageUrlFromPixels { get; init; }
+
+    /// <summary>
     /// Whether the images of pages after the first load only as they are scrolled near
     /// (<c>loading="lazy"</c>), so a long document opens quickly. On by default. Turn it off
     /// for HTML that is printed or captured without being scrolled through, in a browser that
@@ -78,6 +88,11 @@ public sealed record HtmlOptions
         if (PageIdPrefix is null)
         {
             throw new ArgumentException("PageIdPrefix must not be null", paramName);
+        }
+
+        if (ImageUrl is not null && ImageUrlFromPixels is not null)
+        {
+            throw new ArgumentException("Set only one of ImageUrl and ImageUrlFromPixels", paramName);
         }
 
         if (!Enum.IsDefined(Text))

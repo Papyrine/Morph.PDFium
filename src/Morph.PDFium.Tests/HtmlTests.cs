@@ -99,6 +99,64 @@ public class HtmlTests
         await Assert.That(html.IndexOf("images/1.png", StringComparison.Ordinal)).IsLessThan(html.IndexOf("images/4.png", StringComparison.Ordinal));
     }
 
+    [Test]
+    public async Task ImageUrlFromPixelsIsGivenEachPagesPixels()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+        var render = new RenderOptions
+        {
+            Dpi = 72
+        };
+        var pages = new System.Collections.Concurrent.ConcurrentDictionary<int, byte[]>();
+        var html = document.RenderHtml(
+            new()
+            {
+                Render = render,
+                ImageUrlFromPixels = (index, image) =>
+                {
+                    // The pixels the PNG would have held: encoded, they are that PNG.
+                    pages[index] = PngEncoder.Encode(image.Pixels, image.Width, image.Height, image.Dpi, (int) render.CompressionLevel);
+                    return $"images/{index + 1}.webp";
+                }
+            });
+        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3]);
+        for (var index = 0; index < 4; index++)
+        {
+            await Assert.That(html).Contains($"<img src=\"images/{index + 1}.webp\"");
+            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index, render));
+        }
+    }
+
+    [Test]
+    public async Task ImageUrlFromPixelsLeavesOutVisibleText()
+    {
+        using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
+        var render = new RenderOptions
+        {
+            Dpi = 72
+        };
+        byte[]? png = null;
+        var size = (Width: 0, Height: 0, Dpi: 0d);
+        var html = document.RenderPageHtml(
+            0,
+            new()
+            {
+                Render = render,
+                Text = HtmlTextMode.Visible,
+                ImageUrlFromPixels = (_, image) =>
+                {
+                    png = PngEncoder.Encode(image.Pixels, image.Width, image.Height, image.Dpi, (int) render.CompressionLevel);
+                    size = (image.Width, image.Height, image.Dpi);
+                    return "page.jpg";
+                }
+            });
+        await Assert.That(html).Contains("<img src=\"page.jpg\"");
+        // US Letter at 72 DPI: a pixel a point.
+        await Assert.That(size).IsEqualTo((612, 792, 72d));
+        using var page = document.LoadPage(0);
+        await Assert.That(png).IsEquivalentTo(page.RenderWithoutText(render, false));
+    }
+
     // Pages of three sizes, portrait, landscape and fractional, the first size twice, each
     // labelled with its size.
     internal static PdfiumDocument MixedSizeDocument()
@@ -951,6 +1009,7 @@ public class HtmlTests
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = null! })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { PageIdPrefix = null! })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Text = (HtmlTextMode) 9 })).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderPageHtml(0, new() { ImageUrl = (_, _) => "", ImageUrlFromPixels = (_, _) => "" })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = new() { Dpi = 0 } })).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPageHtml(1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderHtml((TextWriter) null!)).Throws<ArgumentNullException>();
