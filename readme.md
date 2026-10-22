@@ -175,7 +175,7 @@ var png = page.Render(dpi: 96);
 
 ### Render to HTML
 
-`RenderHtml` converts a document to a single HTML page. Each page is its rendered image with the page's text laid exactly over it, transparent, in an inline SVG, so the HTML looks like the PDF while its text can be selected, copied and found with the browser's search. Links to other pages, URLs and neighbouring files stay clickable, and the outline becomes a list of links at the top. The pages are rendered in parallel, as `ProcessPages` does, and each prints on a sheet of its own.
+`RenderHtml` converts a document to a single HTML page. Each page is its rendered image with the page's text laid exactly over it, transparent, in an inline SVG, so the HTML looks like the PDF while its text can be selected, copied and found with the browser's search. Links to other pages, URLs and neighbouring files stay clickable, and the outline becomes a list of links at the top. The pages are rendered in parallel, as `ProcessPages` does. Each page prints on a sheet of its own size, with no margins, so a document mixing portrait, landscape and odd sizes prints one sheet per page.
 
 <!-- snippet: RenderHtml -->
 <a id='snippet-RenderHtml'></a>

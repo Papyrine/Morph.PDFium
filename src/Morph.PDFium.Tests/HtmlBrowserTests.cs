@@ -126,6 +126,65 @@ public class HtmlBrowserTests
         await Assert.That(comparison.InkCorrelation).IsLessThan(0.6);
     }
 
+    // Printing the HTML to PDF in Chromium, honouring its @page rules, and reading that PDF back
+    // gives one sheet per page, each the size of its page, with no blank sheet between or after.
+    [Test]
+    public async Task PrintsEachPageOnASheetOfItsSize()
+    {
+        using var document = HtmlTests.MixedSizeDocument();
+        using var printed = PdfiumDocument.Load(await Print(document));
+        await Assert.That(printed.PageCount).IsEqualTo(document.PageCount);
+        for (var index = 0; index < document.PageCount; index++)
+        {
+            var expected = document.GetPageSize(index);
+            var actual = printed.GetPageSize(index);
+            await Assert.That(Math.Abs(actual.Width - expected.Width)).IsLessThan(1);
+            await Assert.That(Math.Abs(actual.Height - expected.Height)).IsLessThan(1);
+        }
+    }
+
+    // Each printed sheet should look like the page: Chromium prints the page image, and
+    // PDFium renders the printed sheet back at the same resolution. The image is resampled
+    // on the way through, so this compares where the ink lies rather than exact pixels.
+    [Test]
+    [Arguments("multi-page 1")]
+    [Arguments("rotated")]
+    public async Task PrintedPagesLookLikeThePages(string name)
+    {
+        var (document, _) = Load(name);
+        using var _ = document;
+        using var printed = PdfiumDocument.Load(await Print(document));
+        await Assert.That(printed.PageCount).IsEqualTo(document.PageCount);
+        for (var index = 0; index < document.PageCount; index++)
+        {
+            var comparison = await Compare(printed.RenderPage(index), document.RenderPage(index));
+            await Assert.That(comparison.SameSize).IsTrue();
+            await Assert.That(comparison.InkCorrelation).IsGreaterThan(0.95);
+        }
+    }
+
+    static async Task<byte[]> Print(PdfiumDocument document)
+    {
+        var html = document.RenderHtml(
+            new()
+            {
+                Render = new()
+                {
+                    Dpi = 150
+                },
+                LazyLoadImages = false
+            });
+        await using var context = await browser.NewContextAsync();
+        var page = await context.NewPageAsync();
+        await page.SetContentAsync(html);
+        return await page.PdfAsync(
+            new()
+            {
+                PreferCSSPageSize = true,
+                PrintBackground = true
+            });
+    }
+
     // A folder of PDFs, such as another converter's test files, to run through the browser
     // comparison without committing them. Off unless the variable is set.
     const string corpusVariable = "MORPH_PDFIUM_HTML_CORPUS";

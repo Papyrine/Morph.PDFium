@@ -53,7 +53,10 @@ public sealed partial class PdfiumDocument
             properties.TryGetValue("Title", out title);
         }
 
-        HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, options);
+        // Read without loading the pages, and as they are displayed, rotation included: the
+        // same sizes the pages render at.
+        var sizes = GetPageSizes();
+        HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, sizes, options);
         // Each page is written as soon as it and the pages before it are rendered, so a long
         // document is never held in memory whole.
         ProcessPagesInOrder(_ => _.RenderHtml(options), _ => writer.Write(_));

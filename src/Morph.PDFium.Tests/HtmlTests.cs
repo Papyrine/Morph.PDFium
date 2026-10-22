@@ -13,7 +13,7 @@ public class HtmlTests
         await Verify(document.RenderPageHtml(0, textOnly), "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="72" y="82.33" font-size="11" textLength="190.76" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">Hello, World! This is a simple paragraph.</text>
                 </svg>
@@ -41,7 +41,7 @@ public class HtmlTests
         await Verify(html, "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <img src="page.png" alt="" draggable="false" style="position:absolute;left:0;top:0;width:100%;height:100%;user-select:none">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" class="pdf-overlay" fill="transparent" font-family="sans-serif">
                 <text x="72" y="82.33" font-size="11" textLength="190.76" lengthAdjust="spacingAndGlyphs">Hello, World! This is a simple paragraph.</text>
@@ -97,6 +97,35 @@ public class HtmlTests
 
         // The pages come out in order.
         await Assert.That(html.IndexOf("images/1.png", StringComparison.Ordinal)).IsLessThan(html.IndexOf("images/4.png", StringComparison.Ordinal));
+    }
+
+    // Pages of three sizes, portrait, landscape and fractional, the first size twice, each
+    // labelled with its size.
+    internal static PdfiumDocument MixedSizeDocument()
+    {
+        var document = PdfiumDocument.CreateNew();
+        (double Width, double Height)[] sizes = [(612, 792), (842, 595), (612, 792), (300.5, 400)];
+        for (var index = 0; index < sizes.Length; index++)
+        {
+            var (width, height) = sizes[index];
+            using var page = document.NewPage(index, width, height);
+            page.AddText($"Page {index + 1}: {width} x {height}", 36, height - 72, fontSize: 18);
+        }
+
+        return document;
+    }
+
+    [Test]
+    public async Task PrintsEachPageOnASheetOfItsSize()
+    {
+        using var document = MixedSizeDocument();
+        var html = document.RenderHtml(textOnly);
+        // One rule per distinct size, the repeated size only once.
+        await Assert.That(html).Contains("@page pdf-612x792{size:612pt 792pt}\n@page pdf-842x595{size:842pt 595pt}\n@page pdf-300_5x400{size:300.5pt 400pt}\n</style>");
+        await Assert.That(html.Split("@page pdf-612x792{").Length - 1).IsEqualTo(1);
+        // Each page asks for the rule of its size.
+        await Assert.That(html).Contains("id=\"page-2\" style=\"position:relative;overflow:hidden;width:842pt;max-width:100%;aspect-ratio:842/595;background:#ffffff;page:pdf-842x595\"");
+        await Assert.That(html).Contains("id=\"page-4\" style=\"position:relative;overflow:hidden;width:300.5pt;max-width:100%;aspect-ratio:300.5/400;background:#ffffff;page:pdf-300_5x400\"");
     }
 
     [Test]
@@ -289,7 +318,7 @@ public class HtmlTests
         await Verify(html, "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="72" y="92" font-size="12" textLength="202.75" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">See https://example.com/text for more</text>
                 <a href="#page-2"><rect x="72" y="172" width="228" height="20" fill="transparent"/></a>
@@ -378,7 +407,7 @@ public class HtmlTests
         await Verify(document.RenderPageHtml(0, textOnly), "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:592pt;max-width:100%;aspect-ratio:592/412;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:592pt;max-width:100%;aspect-ratio:592/412;background:#ffffff;page:pdf-592x412">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 592 412" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="500" y="50" font-size="20" textLength="70.04" lengthAdjust="spacingAndGlyphs" transform="rotate(90 500 50)" font-family="'Helvetica', sans-serif">Rotated</text>
                 <a href="https://example.com/"><rect x="490" y="50" width="30" height="150" fill="transparent"/></a>
@@ -430,7 +459,7 @@ public class HtmlTests
         await Verify(document.RenderPageHtml(0, textOnly), "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="72" y="92" font-size="12" textLength="72.89" lengthAdjust="spacingAndGlyphs" font-family="'Times', serif" font-weight="700" fill="#ff0000">Red bold serif</text>
                 <text x="72" y="112" font-size="12" textLength="80.04" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" font-style="italic" fill="#0000ff">Blue italic sans</text>
@@ -474,7 +503,7 @@ public class HtmlTests
         await Verify(document.RenderPageHtml(0, textOnly), "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="72" y="92" font-size="24" textLength="217.42" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Scaled by the matrix</text>
                 <text x="72" y="192" font-size="20" textLength="184.56" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Doubled by the page</text>
@@ -509,7 +538,7 @@ public class HtmlTests
         await Verify(document.RenderPageHtml(0, textOnly), "html")
             .Snapshot(
                 """
-                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+                <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
                 <text x="72" y="92" font-size="36" textLength="114.05" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="none" stroke="#0000ff" stroke-width="2">Outline</text>
                 <text x="72" y="152" font-size="36" textLength="292.14" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif" fill="#ff0000" stroke="#0000ff" stroke-width="1">Filled and outlined</text>
@@ -610,7 +639,7 @@ public class HtmlTests
         using var document = PdfiumDocument.CreateNew();
         document.NewPage(0, 200, 100).Dispose();
         var html = document.RenderPageHtml(0, textOnly);
-        await Assert.That(html).IsEqualTo("<div class=\"pdf-page\" id=\"page-1\" style=\"position:relative;overflow:hidden;width:200pt;max-width:100%;aspect-ratio:200/100;background:#ffffff\">\n</div>\n");
+        await Assert.That(html).IsEqualTo("<div class=\"pdf-page\" id=\"page-1\" style=\"position:relative;overflow:hidden;width:200pt;max-width:100%;aspect-ratio:200/100;background:#ffffff;page:pdf-200x100\">\n</div>\n");
     }
 
     [Test]

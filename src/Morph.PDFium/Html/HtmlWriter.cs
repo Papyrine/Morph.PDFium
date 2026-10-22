@@ -21,8 +21,15 @@ static class HtmlWriter
         .pdf-page ::selection{background:rgba(0,100,255,.3)}
         .pdf-overlay ::selection{fill:transparent}
         @page{margin:0}
-        @media print{body{background:none}.pdf-outline{display:none}.pdf-document{padding:0;gap:0}.pdf-page{box-shadow:none;break-after:page}}
+        @media print{body{background:none}.pdf-outline{display:none}.pdf-document{display:block;padding:0}.pdf-page{box-shadow:none;break-after:page}}
         """;
+
+    // The name of the printed page a page of this size goes on: its style asks for it with
+    // the page property, and the document declares one @page rule of that size per name. In a
+    // fragment placed on its own, the name matches no rule, and the page prints on whatever
+    // sheet the browser chooses.
+    static string PageName(string width, string height) =>
+        $"pdf-{width.Replace('.', '_')}x{height.Replace('.', '_')}";
 
     public static string Page(HtmlPageLayout layout, string? image, HtmlOptions options)
     {
@@ -31,7 +38,7 @@ static class HtmlWriter
         var height = Number(layout.Height);
         builder.Append("<div class=\"pdf-page\" id=\"");
         AppendEscaped(builder, PageId(options.PageIdPrefix, layout.Index));
-        builder.Append($"\" style=\"position:relative;overflow:hidden;width:{width}pt;max-width:100%;aspect-ratio:{width}/{height};background:{Color(options.Render.Background)}\">\n");
+        builder.Append($"\" style=\"position:relative;overflow:hidden;width:{width}pt;max-width:100%;aspect-ratio:{width}/{height};background:{Color(options.Render.Background)};page:{PageName(width, height)}\">\n");
 
         if (image is not null)
         {
@@ -164,7 +171,7 @@ static class HtmlWriter
 
     // Everything before the pages: the head, the outline and the opening of the main element.
     // DocumentEnd follows the pages.
-    public static void DocumentStart(TextWriter writer, string title, string? language, Dictionary<string, string>? properties, IReadOnlyList<PdfBookmark> outline, HtmlOptions options)
+    public static void DocumentStart(TextWriter writer, string title, string? language, Dictionary<string, string>? properties, IReadOnlyList<PdfBookmark> outline, IReadOnlyList<PageSize> sizes, HtmlOptions options)
     {
         var builder = new StringBuilder("<!DOCTYPE html>\n<html");
         if (language is not null && IsLanguageTag(language))
@@ -178,7 +185,23 @@ static class HtmlWriter
         AppendMeta(builder, "keywords", properties, "Keywords");
         builder.Append("<title>");
         AppendEscaped(builder, title);
-        builder.Append($"</title>\n<style>\n{styles}\n</style>\n</head>\n<body>\n");
+        builder.Append($"</title>\n<style>\n{styles}\n");
+        // One printed page size per page size in the document, so each page prints on a sheet
+        // its own size rather than the browser's default paper, which would shrink it or run
+        // it onto a second sheet.
+        var names = new HashSet<string>();
+        foreach (var size in sizes)
+        {
+            var width = Number(size.Width);
+            var height = Number(size.Height);
+            var name = PageName(width, height);
+            if (names.Add(name))
+            {
+                builder.Append($"@page {name}{{size:{width}pt {height}pt}}\n");
+            }
+        }
+
+        builder.Append("</style>\n</head>\n<body>\n");
 
         if (outline.Count > 0)
         {

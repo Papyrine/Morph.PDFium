@@ -17,7 +17,8 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 .pdf-page ::selection{background:rgba(0,100,255,.3)}
 .pdf-overlay ::selection{fill:transparent}
 @page{margin:0}
-@media print{body{background:none}.pdf-outline{display:none}.pdf-document{padding:0;gap:0}.pdf-page{box-shadow:none;break-after:page}}
+@media print{body{background:none}.pdf-outline{display:none}.pdf-document{display:block;padding:0}.pdf-page{box-shadow:none;break-after:page}}
+@page pdf-612x792{size:612pt 792pt}
 </style>
 </head>
 <body>
@@ -32,7 +33,7 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 </ul>
 </nav>
 <main class="pdf-document">
-<div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="92" font-size="12" textLength="202.75" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">See https://example.com/text for more</text>
 <a href="#page-2"><rect x="72" y="172" width="228" height="20" fill="transparent"/></a>
@@ -42,7 +43,7 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 <a href="https://example.com/text"><rect x="97.48" y="83.26" width="129.18" height="11.11" fill="transparent"/></a>
 </svg>
 </div>
-<div class="pdf-page" id="page-2" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-2" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="92" font-size="12" textLength="70.72" lengthAdjust="spacingAndGlyphs" font-family="'Helvetica', sans-serif">Second page</text>
 </svg>

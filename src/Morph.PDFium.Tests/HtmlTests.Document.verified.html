@@ -17,12 +17,13 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 .pdf-page ::selection{background:rgba(0,100,255,.3)}
 .pdf-overlay ::selection{fill:transparent}
 @page{margin:0}
-@media print{body{background:none}.pdf-outline{display:none}.pdf-document{padding:0;gap:0}.pdf-page{box-shadow:none;break-after:page}}
+@media print{body{background:none}.pdf-outline{display:none}.pdf-document{display:block;padding:0}.pdf-page{box-shadow:none;break-after:page}}
+@page pdf-612x792{size:612pt 792pt}
 </style>
 </head>
 <body>
 <main class="pdf-document">
-<div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="82.33" font-size="11" textLength="441.74" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">Paragraph 1: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor</text>
 <text x="72" y="96.83" font-size="11" textLength="452.62" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation</text>
@@ -64,7 +65,7 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 <text x="72.01" y="714.9" font-size="11" textLength="452.62" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation</text>
 </svg>
 </div>
-<div class="pdf-page" id="page-2" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-2" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="82.33" font-size="11" textLength="76.87" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">ullamco laboris.</text>
 <text x="72" y="104.83" font-size="11" textLength="447.61" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">Paragraph 14: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor</text>
@@ -105,7 +106,7 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 <text x="72.01" y="700.4" font-size="11" textLength="76.87" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">ullamco laboris.</text>
 </svg>
 </div>
-<div class="pdf-page" id="page-3" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-3" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="82.33" font-size="11" textLength="447.61" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">Paragraph 26: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor</text>
 <text x="72" y="96.83" font-size="11" textLength="452.62" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation</text>
@@ -147,7 +148,7 @@ body{margin:0;background:#525659;font-family:system-ui,sans-serif}
 <text x="72.01" y="714.9" font-size="11" textLength="452.62" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation</text>
 </svg>
 </div>
-<div class="pdf-page" id="page-4" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff">
+<div class="pdf-page" id="page-4" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792" preserveAspectRatio="none" xml:space="preserve" style="position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre" fill="#000">
 <text x="72" y="82.33" font-size="11" textLength="76.87" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">ullamco laboris.</text>
 <text x="72" y="104.83" font-size="11" textLength="447.61" lengthAdjust="spacingAndGlyphs" font-family="'Aptos', sans-serif">Paragraph 39: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor</text>
