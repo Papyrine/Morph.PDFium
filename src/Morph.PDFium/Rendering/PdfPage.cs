@@ -45,25 +45,32 @@ public sealed partial class PdfPage
     /// keeps clipping, so what it clips still looks the same.
     /// </summary>
     /// <remarks>
-    /// The text is hidden on a second, throwaway load of the page rather than on this one.
     /// Switching a text object's render mode marks it changed in PDFium, even when it is
     /// switched back, and the next content regeneration (an edit, or GenerateContent) would
-    /// then rewrite the page's original content streams. The throwaway page is closed without
-    /// ever generating content, so nothing is written and this page is untouched.
+    /// then rewrite the page's original content streams. So by default the text is hidden on a
+    /// second, throwaway load of the page, closed without ever generating content, and this
+    /// page is untouched. <paramref name="inPlace"/> hides it on this page instead, saving
+    /// the second parse, which is safe only when the caller is about to dispose this page,
+    /// unedited, and uses nothing else of it in between: the library's own pages, loaded to
+    /// convert and disposed straight after.
     /// </remarks>
-    internal byte[] RenderWithoutText(RenderOptions options)
+    internal byte[] RenderWithoutText(RenderOptions options, bool inPlace)
     {
         RenderedPixels rendered;
         lock (PdfiumNative.Sync)
         {
-            ValidHandle();
-            // The throwaway page is loaded from the document's content, so this page's pending
-            // edits must be in it first.
+            var current = ValidHandle();
+            // Written out first: the throwaway page is loaded from the document's content, and
+            // this page must have nothing left to write when it is disposed with its text hidden.
             document.GeneratePendingContent();
-            var page = PdfiumNative.FPDF_LoadPage(DocumentHandle, Index);
-            if (page == IntPtr.Zero)
+            var page = current;
+            if (!inPlace)
             {
-                throw new PdfiumException($"Failed to load page {Index}");
+                page = PdfiumNative.FPDF_LoadPage(DocumentHandle, Index);
+                if (page == IntPtr.Zero)
+                {
+                    throw new PdfiumException($"Failed to load page {Index}");
+                }
             }
 
             try
@@ -83,7 +90,10 @@ public sealed partial class PdfPage
             }
             finally
             {
-                PdfiumNative.FPDF_ClosePage(page);
+                if (!inPlace)
+                {
+                    PdfiumNative.FPDF_ClosePage(page);
+                }
             }
         }
 

@@ -11,7 +11,7 @@ public sealed partial class PdfiumDocument
         options ??= new();
         options.Validate(nameof(options));
         using var page = LoadPage(index);
-        return page.RenderHtml(options);
+        return page.RenderHtmlPage(options, owned: true);
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed partial class PdfiumDocument
         HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, sizes, options);
         // Each page is written as soon as it and the pages before it are rendered, so a long
         // document is never held in memory whole.
-        ProcessPagesInOrder(_ => _.RenderHtml(options), _ => writer.Write(_));
+        ProcessPagesInOrder(_ => _.RenderHtmlPage(options, owned: true), _ => writer.Write(_));
         writer.Write(HtmlWriter.DocumentEnd);
     }
 }

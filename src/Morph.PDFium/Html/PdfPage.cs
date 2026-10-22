@@ -10,21 +10,31 @@ public sealed partial class PdfPage
     /// narrower container, keeping its proportions. Use
     /// <see cref="PdfiumDocument.RenderHtml(HtmlOptions?)"/> for a complete HTML document.
     /// </summary>
-    public string RenderHtml(HtmlOptions? options = null)
+    public string RenderHtml(HtmlOptions? options = null) =>
+        RenderHtmlPage(options, false);
+
+    // owned is true for the library's own pages, loaded to convert and disposed straight after,
+    // whose text can be hidden in place for the image (see RenderWithoutText).
+    internal string RenderHtmlPage(HtmlOptions? options, bool owned)
     {
         options ??= new();
         options.Validate(nameof(options));
         var layout = ReadHtmlLayout(options);
-        string? image = null;
+        string? imageUrl = null;
+        byte[]? png = null;
         if (options.IncludeImage)
         {
             // Visible text is drawn over the image, so the image leaves it out rather than show
             // it twice.
-            var png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render) : Render(options.Render);
-            image = options.ImageUrl?.Invoke(layout.Index, png) ?? $"data:image/png;base64,{Convert.ToBase64String(png)}";
+            png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render, owned) : Render(options.Render);
+            if (options.ImageUrl is not null)
+            {
+                imageUrl = options.ImageUrl(layout.Index, png);
+                png = null;
+            }
         }
 
-        return HtmlWriter.Page(layout, image, options);
+        return HtmlWriter.Page(layout, imageUrl, png, options);
     }
 
     HtmlPageLayout ReadHtmlLayout(HtmlOptions options)
@@ -108,6 +118,9 @@ public sealed partial class PdfPage
         // Characters come in long stretches from one text object, which fixes their font and
         // color, so the style is worked out once per object. Null marks invisible text.
         var styles = new Dictionary<IntPtr, HtmlTextStyle?>();
+        // A page's many text objects share a few fonts, so the font's part of the look is
+        // worked out once per font.
+        var fonts = new Dictionary<IntPtr, HtmlTextStyle>();
         // Whether the previous character was the first half of a surrogate pair that went into
         // a run, so the second half belongs with it.
         var highSurrogateAdded = false;
@@ -151,7 +164,7 @@ public sealed partial class PdfPage
                 var textObject = PdfiumNative.FPDFText_GetTextObject(text, index);
                 if (!styles.TryGetValue(textObject, out var cached))
                 {
-                    cached = ReadTextStyle(text, index, textObject);
+                    cached = ReadTextStyle(text, index, textObject, fonts);
                     styles[textObject] = cached;
                 }
 
@@ -178,15 +191,19 @@ public sealed partial class PdfPage
             // text at size 1 and scale it up that way.
             var fontSize = PdfiumNative.FPDFText_GetFontSize(text, index);
             // The character's matrix: its text matrix combined with the page's transformation.
-            // Without one, a plain turn by PDFium's character angle, which it measures from the
-            // matrix's y axis, so it is off for sheared text. A failed read returns -1. The
-            // angle is clockwise, though page y runs up.
-            var angle = Math.Max(0, PdfiumNative.FPDFText_GetCharAngle(text, index));
-            var (a, b, c, d) = (Math.Cos(angle), -Math.Sin(angle), Math.Sin(angle), Math.Cos(angle));
+            double a, b, c, d;
             if (PdfiumNative.FPDFText_GetMatrix(text, index, out var charMatrix) &&
                 (charMatrix.A != 0 || charMatrix.B != 0))
             {
                 (a, b, c, d) = (charMatrix.A, charMatrix.B, charMatrix.C, charMatrix.D);
+            }
+            else
+            {
+                // Without one, a plain turn by PDFium's character angle, which it measures from
+                // the matrix's y axis, so it is off for sheared text. A failed read returns -1.
+                // The angle is clockwise, though page y runs up.
+                var (sin, cos) = Math.SinCos(Math.Max(0, PdfiumNative.FPDFText_GetCharAngle(text, index)));
+                (a, b, c, d) = (cos, -sin, sin, cos);
             }
 
             // The baseline runs along the matrix's x axis.
@@ -236,8 +253,9 @@ public sealed partial class PdfPage
     }
 
     // Caller must hold PdfiumNative.Sync. The look of the character at index, or null when its
-    // text object draws it invisibly.
-    static HtmlTextStyle? ReadTextStyle(IntPtr text, int index, IntPtr textObject)
+    // text object draws it invisibly. The font's part of it is taken from fonts, or worked out
+    // and added there.
+    static HtmlTextStyle? ReadTextStyle(IntPtr text, int index, IntPtr textObject, Dictionary<IntPtr, HtmlTextStyle> fonts)
     {
         var mode = PdfiumNative.TextRenderModeFill;
         if (textObject != IntPtr.Zero)
@@ -251,11 +269,26 @@ public sealed partial class PdfPage
             return null;
         }
 
-        var flags = 0;
-        var fontName = Interop.Utf8ByLength((text, index), static (state, buffer, length) => PdfiumNative.FPDFText_GetFontInfo(state.text, state.index, buffer, length, out _));
-        if (fontName is not null)
+        var font = IntPtr.Zero;
+        if (textObject != IntPtr.Zero)
         {
-            PdfiumNative.FPDFText_GetFontInfo(text, index, [], 0, out flags);
+            font = PdfiumNative.FPDFTextObj_GetFont(textObject);
+        }
+
+        if (font == IntPtr.Zero || !fonts.TryGetValue(font, out var look))
+        {
+            var flags = 0;
+            var fontName = Interop.Utf8ByLength((text, index), static (state, buffer, length) => PdfiumNative.FPDFText_GetFontInfo(state.text, state.index, buffer, length, out _));
+            if (fontName is not null)
+            {
+                PdfiumNative.FPDFText_GetFontInfo(text, index, [], 0, out flags);
+            }
+
+            look = HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index));
+            if (font != IntPtr.Zero)
+            {
+                fonts[font] = look;
+            }
         }
 
         PdfColor? fill = null;
@@ -284,7 +317,6 @@ public sealed partial class PdfPage
             }
         }
 
-        var look = HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index));
         return look with
         {
             Fill = fill,

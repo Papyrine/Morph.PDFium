@@ -315,6 +315,36 @@ public class HtmlTests
         await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
     }
 
+    // The document's own conversions hide the text in place, on a page they load and dispose
+    // themselves, so the same holds after them for a page loaded afterwards.
+    [Test]
+    public async Task DocumentConversionLeavesNoTraceForLaterEdits()
+    {
+        static byte[] EditAndSave(bool renderHtml)
+        {
+            using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
+            if (renderHtml)
+            {
+                var options = new HtmlOptions
+                {
+                    Text = HtmlTextMode.Visible,
+                    ImageUrl = (_, _) => "page.png"
+                };
+                document.RenderPageHtml(0, options);
+                document.RenderHtml(TextWriter.Null, options);
+            }
+
+            using (var page = document.LoadPage(0))
+            {
+                page.AddRectangle(new(72, 72, 144, 144), new(255, 0, 0, 255));
+            }
+
+            return WithoutTrailer(document.Save());
+        }
+
+        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+    }
+
     // Every save writes a fresh random file identifier into the trailer, so saves are compared
     // up to it.
     static byte[] WithoutTrailer(byte[] pdf)
