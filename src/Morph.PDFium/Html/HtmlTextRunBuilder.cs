@@ -82,14 +82,19 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
         }
 
         pendingSpace = false;
-        if (Rune.IsValid(codePoint))
+        if (codePoint <= char.MaxValue)
         {
-            text.Append(new Rune(codePoint).ToString());
+            // Including a first surrogate half, which AppendLowSurrogate completes.
+            text.Append((char) codePoint);
+        }
+        else if (Rune.IsValid(codePoint))
+        {
+            Span<char> pair = stackalloc char[2];
+            text.Append(pair[..new Rune(codePoint).EncodeToUtf16(pair)]);
         }
         else
         {
-            // A lone surrogate half, kept for AppendLowSurrogate to complete.
-            text.Append((char) codePoint);
+            text.Append('�');
         }
 
         // How far along the baseline, from the run's origin, the character reaches.

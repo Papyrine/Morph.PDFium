@@ -131,12 +131,25 @@ public sealed partial class PdfiumDocument
                         {
                             results[index] = result;
                             done[index] = true;
-                            while (next < count && done[next])
+                            // Once anything has failed, consume is not called again: a writer
+                            // that threw is not handed the pages after the one it failed on.
+                            while (next < count && done[next] && !failed)
                             {
                                 var ready = results[next];
                                 results[next] = default!;
                                 next++;
-                                consume(ready);
+                                try
+                                {
+                                    consume(ready);
+                                }
+                                catch
+                                {
+                                    // Set before the lock is released, so no other worker
+                                    // drains past it in the meantime.
+                                    failed = true;
+                                    throw;
+                                }
+
                                 window.Release();
                             }
                         }

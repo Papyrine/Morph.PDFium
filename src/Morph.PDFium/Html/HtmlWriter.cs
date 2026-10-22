@@ -31,19 +31,39 @@ static class HtmlWriter
     static string PageName(string width, string height) =>
         $"pdf-{width.Replace('.', '_')}x{height.Replace('.', '_')}";
 
-    public static string Page(HtmlPageLayout layout, string? image, HtmlOptions options)
+    const string dataUriPrefix = "data:image/png;base64,";
+
+    // The page's image is either imageUrl, the caller's URL for it, or png, embedded as a data
+    // URI; or neither, for a page without its image.
+    public static string Page(HtmlPageLayout layout, string? imageUrl, byte[]? png, HtmlOptions options)
     {
-        var builder = new StringBuilder(256 + layout.Runs.Count * 128 + (image?.Length ?? 0));
+        var base64Length = png is null ? 0 : (png.Length + 2) / 3 * 4;
+        var builder = new StringBuilder(512 + layout.Runs.Count * 160 + (imageUrl?.Length ?? 0) + base64Length);
         var width = Number(layout.Width);
         var height = Number(layout.Height);
         builder.Append("<div class=\"pdf-page\" id=\"");
         AppendEscaped(builder, PageId(options.PageIdPrefix, layout.Index));
         builder.Append($"\" style=\"position:relative;overflow:hidden;width:{width}pt;max-width:100%;aspect-ratio:{width}/{height};background:{Color(options.Render.Background)};page:{PageName(width, height)}\">\n");
 
-        if (image is not null)
+        if (imageUrl is not null || png is not null)
         {
             builder.Append("<img src=\"");
-            AppendEscaped(builder, image);
+            if (png is null)
+            {
+                AppendEscaped(builder, imageUrl!);
+            }
+            else
+            {
+                // Base64 has nothing to escape, so it is encoded straight into the builder,
+                // rather than through a string the size of the image and then escaped
+                // character by character.
+                builder.Append(dataUriPrefix);
+                var chars = ArrayPool<char>.Shared.Rent(base64Length);
+                Convert.TryToBase64Chars(png, chars, out var written);
+                builder.Append(chars, 0, written);
+                ArrayPool<char>.Shared.Return(chars);
+            }
+
             // With text the image is decoration over which the text is read; without it the
             // image is all there is, so it says which page it is.
             var alt = options.Text == HtmlTextMode.None ? $"Page {layout.Index + 1}" : "";

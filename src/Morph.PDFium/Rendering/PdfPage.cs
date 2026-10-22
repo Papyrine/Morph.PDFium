@@ -41,26 +41,44 @@ public sealed partial class PdfPage
 
     /// <summary>
     /// Renders this page to a PNG as <see cref="Render(RenderOptions)"/> does, but with the
-    /// page's text left out: its images, drawings and annotations only. Each text object is
-    /// switched to draw nothing for the render and switched back straight after, all under the
-    /// PDFium lock, so nothing else sees the change and the page's content is never written
-    /// out with it. Text that also clips keeps clipping, so what it clips still looks the same.
+    /// page's text left out: its images, drawings and annotations only. Text that also clips
+    /// keeps clipping, so what it clips still looks the same.
     /// </summary>
-    internal byte[] RenderWithoutText(RenderOptions options)
+    /// <remarks>
+    /// Switching a text object's render mode marks it changed in PDFium, even when it is
+    /// switched back, and the next content regeneration (an edit, or GenerateContent) would
+    /// then rewrite the page's original content streams. So by default the text is hidden on a
+    /// second, throwaway load of the page, closed without ever generating content, and this
+    /// page is untouched. <paramref name="inPlace"/> hides it on this page instead, saving
+    /// the second parse, which is safe only when the caller is about to dispose this page,
+    /// unedited, and uses nothing else of it in between: the library's own pages, loaded to
+    /// convert and disposed straight after.
+    /// </remarks>
+    internal byte[] RenderWithoutText(RenderOptions options, bool inPlace)
     {
         RenderedPixels rendered;
         lock (PdfiumNative.Sync)
         {
-            var page = ValidHandle();
-            // Written out before the text is hidden, never while it is.
+            var current = ValidHandle();
+            // Written out first: the throwaway page is loaded from the document's content, and
+            // this page must have nothing left to write when it is disposed with its text hidden.
             document.GeneratePendingContent();
-            var hidden = new List<(IntPtr Object, int Mode)>();
+            var page = current;
+            if (!inPlace)
+            {
+                page = PdfiumNative.FPDF_LoadPage(DocumentHandle, Index);
+                if (page == IntPtr.Zero)
+                {
+                    throw new PdfiumException($"Failed to load page {Index}");
+                }
+            }
+
             try
             {
                 var count = PdfiumNative.FPDFPage_CountObjects(page);
                 for (var index = 0; index < count; index++)
                 {
-                    HideText(PdfiumNative.FPDFPage_GetObject(page, index), hidden, 0);
+                    HideText(PdfiumNative.FPDFPage_GetObject(page, index), 0);
                 }
 
                 var size = new PdfiumNative.PageSizeF
@@ -72,9 +90,9 @@ public sealed partial class PdfPage
             }
             finally
             {
-                foreach (var (textObject, mode) in hidden)
+                if (!inPlace)
                 {
-                    PdfiumNative.FPDFTextObj_SetTextRenderMode(textObject, mode);
+                    PdfiumNative.FPDF_ClosePage(page);
                 }
             }
         }
@@ -86,9 +104,9 @@ public sealed partial class PdfPage
     }
 
     // Caller must hold PdfiumNative.Sync. Switches a text object, or the text objects within a
-    // form, to draw nothing, recording each one's mode to restore. Modes 4 to 7 draw as 0 to 3
-    // do and also add the text to the clipping path, so those become 7, which only clips.
-    static void HideText(IntPtr pageObject, List<(IntPtr Object, int Mode)> hidden, int depth)
+    // form, to draw nothing. Modes 4 to 7 draw as 0 to 3 do and also add the text to the
+    // clipping path, so those become 7, which only clips.
+    static void HideText(IntPtr pageObject, int depth)
     {
         if (pageObject == IntPtr.Zero)
         {
@@ -100,15 +118,9 @@ public sealed partial class PdfPage
             case PdfPageObjectType.Text:
                 // An unknown mode (-1) is drawn filled.
                 var mode = Math.Max(PdfiumNative.TextRenderModeFill, PdfiumNative.FPDFTextObj_GetTextRenderMode(pageObject));
-                if (mode % 4 == PdfiumNative.TextRenderModeInvisible)
+                if (mode % 4 != PdfiumNative.TextRenderModeInvisible)
                 {
-                    return;
-                }
-
-                var invisible = mode >= 4 ? PdfiumNative.TextRenderModeInvisible + 4 : PdfiumNative.TextRenderModeInvisible;
-                if (PdfiumNative.FPDFTextObj_SetTextRenderMode(pageObject, invisible))
-                {
-                    hidden.Add((pageObject, mode));
+                    PdfiumNative.FPDFTextObj_SetTextRenderMode(pageObject, mode >= 4 ? PdfiumNative.TextRenderModeInvisible + 4 : PdfiumNative.TextRenderModeInvisible);
                 }
 
                 break;
@@ -116,7 +128,7 @@ public sealed partial class PdfPage
                 var count = PdfiumNative.FPDFFormObj_CountObjects(pageObject);
                 for (var index = 0; index < count; index++)
                 {
-                    HideText(PdfiumNative.FPDFFormObj_GetObject(pageObject, (uint) index), hidden, depth + 1);
+                    HideText(PdfiumNative.FPDFFormObj_GetObject(pageObject, (uint) index), depth + 1);
                 }
 
                 break;

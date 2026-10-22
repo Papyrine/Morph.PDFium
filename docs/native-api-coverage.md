@@ -1,7 +1,7 @@
 # PDFium native API coverage
 
 The bundled `pdfium.dll` (bblanchon.PDFium 151.0.7881) exports **460** functions —
-the complete public PDFium C API. Morph.PDFium currently binds **162** of them and
+the complete public PDFium C API. Morph.PDFium currently binds **163** of them and
 surfaces the meaningful subset through a managed API. This document records what is
 wrapped, and — more importantly — what is **not yet implemented**, with the reason.
 
@@ -14,7 +14,7 @@ declarations in `PdfiumNative.*.cs`; counts will drift as bindings are added.
 |------|----------------------|
 | Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier`, `GetLanguage` |
 | Pages & rendering | `PageCount`, `GetPageSize(s)`, `RenderPage` (DPI or `RenderOptions`), `RenderPages`, `RenderRegion` (clip/scale), `LoadPage` → `PdfPage` |
-| HTML | `RenderHtml` (whole document), `RenderPageHtml` / `PdfPage.RenderHtml` (page fragment), `HtmlOptions`; uses char origin/loose box/angle/matrix, font info/weight, fill and stroke color, text object render mode (get and set, to render the page without its text) and stroke width, form XObject children, generated flag and `FPDF_PageToDevice` |
+| HTML | `RenderHtml` (whole document), `RenderPageHtml` / `PdfPage.RenderHtml` (page fragment), `HtmlOptions`; uses char origin/loose box/angle/matrix, font info/weight, fill and stroke color, text object render mode (get and set, to render the page without its text) and stroke width, form XObject children, text object font, generated flag and `FPDF_PageToDevice` |
 | Text & search | `PdfPage.GetText`, `GetChars`, `GetTextInRectangle`, `GetTextRectangles`, `GetCharIndexAt`, `Search` |
 | Navigation | `GetBookmarks` (outline tree), destinations, actions, `PdfPage.GetLinks`, `GetWebLinks` |
 | Annotations | `PdfPage.GetAnnotations`, `AddAnnotation`, `RemoveAnnotation` |

@@ -10,21 +10,31 @@ public sealed partial class PdfPage
     /// narrower container, keeping its proportions. Use
     /// <see cref="PdfiumDocument.RenderHtml(HtmlOptions?)"/> for a complete HTML document.
     /// </summary>
-    public string RenderHtml(HtmlOptions? options = null)
+    public string RenderHtml(HtmlOptions? options = null) =>
+        RenderHtmlPage(options, false);
+
+    // owned is true for the library's own pages, loaded to convert and disposed straight after,
+    // whose text can be hidden in place for the image (see RenderWithoutText).
+    internal string RenderHtmlPage(HtmlOptions? options, bool owned)
     {
         options ??= new();
         options.Validate(nameof(options));
         var layout = ReadHtmlLayout(options);
-        string? image = null;
+        string? imageUrl = null;
+        byte[]? png = null;
         if (options.IncludeImage)
         {
             // Visible text is drawn over the image, so the image leaves it out rather than show
             // it twice.
-            var png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render) : Render(options.Render);
-            image = options.ImageUrl?.Invoke(layout.Index, png) ?? $"data:image/png;base64,{Convert.ToBase64String(png)}";
+            png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render, owned) : Render(options.Render);
+            if (options.ImageUrl is not null)
+            {
+                imageUrl = options.ImageUrl(layout.Index, png);
+                png = null;
+            }
         }
 
-        return HtmlWriter.Page(layout, image, options);
+        return HtmlWriter.Page(layout, imageUrl, png, options);
     }
 
     HtmlPageLayout ReadHtmlLayout(HtmlOptions options)
@@ -55,20 +65,16 @@ public sealed partial class PdfPage
     }
 
     // Caller must hold PdfiumNative.Sync. Works out the map from page coordinates to display
-    // coordinates by asking FPDF_PageToDevice where three corners of the page box land, which
-    // accounts for the page's rotation and for a media or crop box away from the origin.
+    // coordinates by asking FPDF_PageToDevice where three points land, which accounts for the
+    // page's rotation and for a media or crop box away from the origin. Any three points not in
+    // a line do, so fixed ones are used rather than the page box, which a malformed page (a
+    // crop box outside its media box) can leave empty.
     DisplayMatrix ReadDisplayMatrix(IntPtr page, double width, double height)
     {
-        if (!PdfiumNative.FPDF_GetPageBoundingBox(page, out var box) ||
-            box.Right <= box.Left ||
-            box.Top <= box.Bottom)
-        {
-            throw new PdfiumException($"Failed to read bounding box of page {Index}");
-        }
-
         // FPDF_PageToDevice answers in whole device units, so ask about a device this many
         // times the page's size in points to keep precision below a point.
         const int unitsPerPoint = 1000;
+        const double span = 1000;
         var deviceWidth = (int) Math.Round(width * unitsPerPoint);
         var deviceHeight = (int) Math.Round(height * unitsPerPoint);
         (double X, double Y) ToDisplay(double x, double y)
@@ -81,17 +87,15 @@ public sealed partial class PdfPage
             return ((double) deviceX / unitsPerPoint, (double) deviceY / unitsPerPoint);
         }
 
-        var origin = ToDisplay(box.Left, box.Bottom);
-        var right = ToDisplay(box.Right, box.Bottom);
-        var top = ToDisplay(box.Left, box.Top);
-        var boxWidth = (double) box.Right - box.Left;
-        var boxHeight = (double) box.Top - box.Bottom;
+        var origin = ToDisplay(0, 0);
+        var right = ToDisplay(span, 0);
+        var top = ToDisplay(0, span);
         // A quarter turn's coefficients are exactly 0 or ±1; snap off the device rounding.
-        var a = Snap((right.X - origin.X) / boxWidth);
-        var b = Snap((right.Y - origin.Y) / boxWidth);
-        var c = Snap((top.X - origin.X) / boxHeight);
-        var d = Snap((top.Y - origin.Y) / boxHeight);
-        return new(a, b, c, d, origin.X - a * box.Left - c * box.Bottom, origin.Y - b * box.Left - d * box.Bottom);
+        var a = Snap((right.X - origin.X) / span);
+        var b = Snap((right.Y - origin.Y) / span);
+        var c = Snap((top.X - origin.X) / span);
+        var d = Snap((top.Y - origin.Y) / span);
+        return new(a, b, c, d, origin.X, origin.Y);
     }
 
     static double Snap(double value)
@@ -114,9 +118,17 @@ public sealed partial class PdfPage
         // Characters come in long stretches from one text object, which fixes their font and
         // color, so the style is worked out once per object. Null marks invisible text.
         var styles = new Dictionary<IntPtr, HtmlTextStyle?>();
+        // A page's many text objects share a few fonts, so the font's part of the look is
+        // worked out once per font.
+        var fonts = new Dictionary<IntPtr, HtmlTextStyle>();
+        // Whether the previous character was the first half of a surrogate pair that went into
+        // a run, so the second half belongs with it.
+        var highSurrogateAdded = false;
         for (var index = 0; index < count; index++)
         {
             var unicode = PdfiumNative.FPDFText_GetUnicode(text, index);
+            var afterHighSurrogate = highSurrogateAdded;
+            highSurrogateAdded = false;
             if (unicode is '\r' or '\n')
             {
                 builder.Flush();
@@ -135,9 +147,14 @@ public sealed partial class PdfPage
                 continue;
             }
 
+            // A second half whose first half was left out (drawn invisibly, say) goes too.
             if (unicode is >= 0xDC00 and <= 0xDFFF)
             {
-                builder.AppendLowSurrogate((char) unicode);
+                if (afterHighSurrogate)
+                {
+                    builder.AppendLowSurrogate((char) unicode);
+                }
+
                 continue;
             }
 
@@ -147,7 +164,7 @@ public sealed partial class PdfPage
                 var textObject = PdfiumNative.FPDFText_GetTextObject(text, index);
                 if (!styles.TryGetValue(textObject, out var cached))
                 {
-                    cached = ReadTextStyle(text, index, textObject);
+                    cached = ReadTextStyle(text, index, textObject, fonts);
                     styles[textObject] = cached;
                 }
 
@@ -174,15 +191,19 @@ public sealed partial class PdfPage
             // text at size 1 and scale it up that way.
             var fontSize = PdfiumNative.FPDFText_GetFontSize(text, index);
             // The character's matrix: its text matrix combined with the page's transformation.
-            // Without one, a plain turn by PDFium's character angle, which it measures from the
-            // matrix's y axis, so it is off for sheared text. A failed read returns -1. The
-            // angle is clockwise, though page y runs up.
-            var angle = Math.Max(0, PdfiumNative.FPDFText_GetCharAngle(text, index));
-            var (a, b, c, d) = (Math.Cos(angle), -Math.Sin(angle), Math.Sin(angle), Math.Cos(angle));
+            double a, b, c, d;
             if (PdfiumNative.FPDFText_GetMatrix(text, index, out var charMatrix) &&
                 (charMatrix.A != 0 || charMatrix.B != 0))
             {
                 (a, b, c, d) = (charMatrix.A, charMatrix.B, charMatrix.C, charMatrix.D);
+            }
+            else
+            {
+                // Without one, a plain turn by PDFium's character angle, which it measures from
+                // the matrix's y axis, so it is off for sheared text. A failed read returns -1.
+                // The angle is clockwise, though page y runs up.
+                var (sin, cos) = Math.SinCos(Math.Max(0, PdfiumNative.FPDFText_GetCharAngle(text, index)));
+                (a, b, c, d) = (cos, -sin, sin, cos);
             }
 
             // The baseline runs along the matrix's x axis.
@@ -198,6 +219,7 @@ public sealed partial class PdfPage
             }
 
             builder.Add((int) unicode, x, y, Advance(box, a, b, c, d, fontSize), fontSize, a / length, b / length, style);
+            highSurrogateAdded = unicode is >= 0xD800 and <= 0xDBFF;
         }
 
         builder.Flush();
@@ -231,8 +253,9 @@ public sealed partial class PdfPage
     }
 
     // Caller must hold PdfiumNative.Sync. The look of the character at index, or null when its
-    // text object draws it invisibly.
-    static HtmlTextStyle? ReadTextStyle(IntPtr text, int index, IntPtr textObject)
+    // text object draws it invisibly. The font's part of it is taken from fonts, or worked out
+    // and added there.
+    static HtmlTextStyle? ReadTextStyle(IntPtr text, int index, IntPtr textObject, Dictionary<IntPtr, HtmlTextStyle> fonts)
     {
         var mode = PdfiumNative.TextRenderModeFill;
         if (textObject != IntPtr.Zero)
@@ -246,11 +269,26 @@ public sealed partial class PdfPage
             return null;
         }
 
-        var flags = 0;
-        var fontName = Interop.Utf8ByLength((text, index), static (state, buffer, length) => PdfiumNative.FPDFText_GetFontInfo(state.text, state.index, buffer, length, out _));
-        if (fontName is not null)
+        var font = IntPtr.Zero;
+        if (textObject != IntPtr.Zero)
         {
-            PdfiumNative.FPDFText_GetFontInfo(text, index, [], 0, out flags);
+            font = PdfiumNative.FPDFTextObj_GetFont(textObject);
+        }
+
+        if (font == IntPtr.Zero || !fonts.TryGetValue(font, out var look))
+        {
+            var flags = 0;
+            var fontName = Interop.Utf8ByLength((text, index), static (state, buffer, length) => PdfiumNative.FPDFText_GetFontInfo(state.text, state.index, buffer, length, out _));
+            if (fontName is not null)
+            {
+                PdfiumNative.FPDFText_GetFontInfo(text, index, [], 0, out flags);
+            }
+
+            look = HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index));
+            if (font != IntPtr.Zero)
+            {
+                fonts[font] = look;
+            }
         }
 
         PdfColor? fill = null;
@@ -279,7 +317,6 @@ public sealed partial class PdfPage
             }
         }
 
-        var look = HtmlFonts.Style(fontName, flags, PdfiumNative.FPDFText_GetFontWeight(text, index));
         return look with
         {
             Fill = fill,
