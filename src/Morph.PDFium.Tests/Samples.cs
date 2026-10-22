@@ -158,6 +158,23 @@ public class Samples
     }
 
     [Test]
+    public async Task RenderOpenPage()
+    {
+        #region RenderOpenPage
+
+        using var document = PdfiumDocument.Load("sample.pdf");
+        using var page = document.LoadPage(0);
+        var text = page.GetText();
+        // Renders the page that is already loaded, rather than parsing it again
+        var png = page.Render(dpi: 96);
+
+        #endregion
+
+        await Assert.That(text).IsNotNull();
+        await Assert.That(png.Length).IsGreaterThan(0);
+    }
+
+    [Test]
     public async Task RenderRegion()
     {
         #region RenderRegion

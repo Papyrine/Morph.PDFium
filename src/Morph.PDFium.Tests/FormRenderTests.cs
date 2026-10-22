@@ -106,7 +106,7 @@ public class FormRenderTests
     // One line of text on a page whose media box does not start at the origin, and the same
     // on a page rotated a quarter turn. On both, page coordinates and the displayed page
     // differ, which they do not on the sample files.
-    static byte[] PdfWithOffsetAndRotatedPages() =>
+    internal static byte[] PdfWithOffsetAndRotatedPages() =>
         CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R >>",
