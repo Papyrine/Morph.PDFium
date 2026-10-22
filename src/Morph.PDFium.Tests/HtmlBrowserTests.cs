@@ -32,7 +32,13 @@ public class HtmlBrowserTests
     }
 
     public static IEnumerable<string> Pages() =>
-        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked"];
+        [.. TextPages(), "irs 1", "irs 2", "nasa 1"];
+
+    // Pages that are almost all text, so text-only HTML should look like them too. Page 1 of
+    // the NASA fact sheet is a third photo, and the IRS form is as much ruled lines, boxes and
+    // shading as text, all of which text-only HTML leaves out.
+    public static IEnumerable<string> TextPages() =>
+        ["sample", "multi-page 1", "multi-page 4", "links", "rotated", "scaled", "stroked", "nasa 2"];
 
     static (PdfiumDocument Document, int Page) Load(string name) =>
         name switch
@@ -44,6 +50,10 @@ public class HtmlBrowserTests
             "rotated" => (PdfiumDocument.Load(HtmlTests.RotatedPdf()), 0),
             "scaled" => (PdfiumDocument.Load(HtmlTests.ScaledTextPdf()), 0),
             "stroked" => (PdfiumDocument.Load(HtmlTests.StrokedTextPdf()), 0),
+            "irs 1" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 0),
+            "irs 2" => (PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf), 1),
+            "nasa 1" => (PdfiumDocument.Load(ProjectFiles.nasa_training_for_space_pdf), 0),
+            "nasa 2" => (PdfiumDocument.Load(ProjectFiles.nasa_training_for_space_pdf), 1),
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null)
         };
 
@@ -89,7 +99,7 @@ public class HtmlBrowserTests
     // each run should cover the same stretch of the page. Blurring both away from the shapes
     // of the glyphs and correlating where the ink lies checks that.
     [Test]
-    [MethodDataSource(nameof(Pages))]
+    [MethodDataSource(nameof(TextPages))]
     public async Task VisibleTextLiesWhereTheRenderedTextDoes(string name)
     {
         var (document, index) = Load(name);
@@ -275,8 +285,10 @@ public class HtmlBrowserTests
         await Assert.That(failures).IsEmpty();
     }
 
+    // The charset matters for the corpus output files, which a browser would otherwise read
+    // as Windows-1252.
     static string Wrap(string fragment) =>
-        $"<!DOCTYPE html><html><body style=\"margin:0\">{fragment}</body></html>";
+        $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body style=\"margin:0\">{fragment}</body></html>";
 
     static async Task<byte[]> Screenshot(string fragment, float deviceScale)
     {
