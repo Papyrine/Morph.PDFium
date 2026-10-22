@@ -68,6 +68,8 @@ public sealed class PdfAttachment
                 return [];
             }
 
+            // Decoded a second time: PDFium copies the file only into a buffer of exactly its
+            // length, so a larger one, which could have saved the first decode, stays empty.
             var length = checked((uint) required.Value);
             var buffer = new byte[length];
             if (!PdfiumNative.FPDFAttachment_GetFile(handle, buffer, length, out _))

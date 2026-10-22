@@ -140,16 +140,30 @@ public sealed partial class PdfiumDocument :
         }
     }
 
-    public IReadOnlyList<PageSize> GetPageSizes()
-    {
-        ThrowIfDisposed();
-        var sizes = new List<PageSize>(pageCount);
-        for (var index = 0; index < pageCount; index++)
-        {
-            sizes.Add(GetPageSize(index));
-        }
+    public IReadOnlyList<PageSize> GetPageSizes() =>
+        GetPageSizes(int.MaxValue);
 
-        return sizes;
+    // The sizes of the first count pages, or of every page when there are fewer, read under
+    // one hold of the lock rather than one per page.
+    internal List<PageSize> GetPageSizes(int count)
+    {
+        lock (PdfiumNative.Sync)
+        {
+            ThrowIfDisposed();
+            count = Math.Min(count, pageCount);
+            var sizes = new List<PageSize>(count);
+            for (var index = 0; index < count; index++)
+            {
+                if (PdfiumNative.FPDF_GetPageSizeByIndexF(handle, index, out var size) == 0)
+                {
+                    throw new PdfiumException($"Failed to read size of page {index}");
+                }
+
+                sizes.Add(new(size.Width, size.Height));
+            }
+
+            return sizes;
+        }
     }
 
     static readonly (string Name, byte[] Tag)[] metadataTags =
@@ -173,18 +187,8 @@ public sealed partial class PdfiumDocument :
             ThrowIfDisposed();
             foreach (var (name, tag) in metadataTags)
             {
-                // Returns the required buffer size in bytes for the UTF-16LE value
-                // including the two byte terminator; 2 or less means no value.
-                var length = PdfiumNative.FPDF_GetMetaText(handle, tag, [], 0);
-                if (length <= 2)
-                {
-                    continue;
-                }
-
-                var buffer = new byte[length];
-                PdfiumNative.FPDF_GetMetaText(handle, tag, buffer, length);
-                var value = Encoding.Unicode.GetString(buffer, 0, (int) length - 2);
-                if (value.Length == 0)
+                var value = Interop.Utf16ByLength((handle, tag), static (state, buffer, length) => PdfiumNative.FPDF_GetMetaText(state.handle, state.tag, buffer, length));
+                if (value is null)
                 {
                     continue;
                 }

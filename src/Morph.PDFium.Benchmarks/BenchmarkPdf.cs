@@ -5,8 +5,12 @@ static class BenchmarkPdf
     public static string Path { get; } =
         Environment.GetEnvironmentVariable("MORPH_PDFIUM_BENCHMARK_PDF") ?? DefaultPath();
 
-    // Resolved from this source file's location at compile time, since the benchmarks run
-    // from BenchmarkDotNet's generated output directory rather than this project's.
-    static string DefaultPath([CallerFilePath] string source = "") =>
-        System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(source)!, "..", "Morph.PDFium.Tests", "multi-page.pdf"));
+    static string DefaultPath() =>
+        Asset("multi-page.pdf");
+
+    // A test asset, resolved from this source file's location at compile time, since the
+    // benchmarks run from BenchmarkDotNet's generated output directory rather than this
+    // project's.
+    public static string Asset(string name, [CallerFilePath] string source = "") =>
+        System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(source)!, "..", "Morph.PDFium.Tests", name));
 }
