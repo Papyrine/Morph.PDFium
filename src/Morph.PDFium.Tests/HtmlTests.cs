@@ -923,6 +923,71 @@ public class HtmlTests
     }
 
     [Test]
+    public async Task ListIndentsAreSeparateRuns()
+    {
+        // A bullet and a list number, each followed by a space and then text at the indent,
+        // over an em past them: Word's hanging indent. Then a bullet with a single word.
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(
+                """
+                BT /F1 11 Tf 90 700 Td (\225 ) Tj 18 0 Td (Donec ullamcorper fringilla eros) Tj ET
+                BT /F1 11 Tf 90 680 Td (1. ) Tj 18 0 Td (Fusce iaculis est quis) Tj ET
+                BT /F1 11 Tf 90 660 Td (\225 ) Tj 18 0 Td (Alone) Tj ET
+                """),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(
+            0,
+            new()
+            {
+                IncludeImage = false
+            });
+        // Each line's text starts at the indent, rather than spread from the bullet.
+        await Assert.That(html).Contains("<text x=\"108\" y=\"92\" font-size=\"11\" textLength=\"154.65\" lengthAdjust=\"spacingAndGlyphs\">Donec ullamcorper fringilla eros</text>");
+        await Assert.That(html).Contains("<text x=\"108\" y=\"112\" font-size=\"11\" textLength=\"104.53\" lengthAdjust=\"spacingAndGlyphs\">Fusce iaculis est quis</text>");
+        await Assert.That(html).Contains("<text x=\"108\" y=\"132\" font-size=\"11\" textLength=\"28.13\" lengthAdjust=\"spacingAndGlyphs\">Alone</text>");
+        await Assert.That(html).Contains(">1.</text>");
+        await Assert.That(html.Split(">•</text>").Length - 1).IsEqualTo(2);
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(6);
+    }
+
+    [Test]
+    public async Task JustifiedLinesAreOneRunEach()
+    {
+        // Lines spread to the margin by word spacing, as justified text is: the first with
+        // spaces of about an em, the second a third of that, and a dot leader.
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(
+                """
+                BT /F1 11 Tf 8 Tw 72 700 Td (A line set wide by word spacing) Tj ET
+                BT /F1 11 Tf 1 Tw 72 686 Td (A line set a little wide by word spacing) Tj ET
+                BT /F1 11 Tf 10 Tw 72 672 Td (. . . . . . . .) Tj ET
+                """),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(
+            0,
+            new()
+            {
+                IncludeImage = false
+            });
+        await Assert.That(html).Contains(">A line set wide by word spacing</text>");
+        await Assert.That(html).Contains(">A line set a little wide by word spacing</text>");
+        await Assert.That(html).Contains(">. . . . . . . .</text>");
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(3);
+    }
+
+    [Test]
     public async Task EscapesText()
     {
         using var document = PdfiumDocument.CreateNew();
