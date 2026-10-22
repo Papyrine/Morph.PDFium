@@ -83,7 +83,7 @@ public class PdfiumDocumentTests
         using var document = PdfiumDocument.Load(ProjectFiles.sample_pdf);
         var first = document.RenderPage(0);
         var second = document.RenderPage(0);
-        await Assert.That(second).IsEquivalentTo(first);
+        await Bytes.AreEqual(second, first);
     }
 
     [Test]
@@ -96,7 +96,7 @@ public class PdfiumDocumentTests
                 .Select(_ => Task.Run(() => document.RenderPage(0))));
         foreach (var render in renders)
         {
-            await Assert.That(render).IsEquivalentTo(reference);
+            await Bytes.AreEqual(render, reference);
         }
     }
 
@@ -198,7 +198,7 @@ public class PdfiumDocumentTests
         await Assert.That(pages.Count).IsEqualTo(document.PageCount);
         for (var index = 0; index < pages.Count; index++)
         {
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index));
         }
     }
 

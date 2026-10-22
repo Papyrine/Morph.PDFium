@@ -14,7 +14,7 @@ public class PngEncoderTests
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 0);
-        await Assert.That(pixels).IsEquivalentTo(Reds(rgba));
+        await Bytes.AreEqual(pixels, Reds(rgba));
     }
 
     [Test]
@@ -26,7 +26,7 @@ public class PngEncoderTests
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 2);
-        await Assert.That(pixels).IsEquivalentTo(Reds(rgba));
+        await Bytes.AreEqual(pixels, Reds(rgba));
     }
 
     [Test]
@@ -38,7 +38,7 @@ public class PngEncoderTests
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
         await Assert.That(filters.Distinct().Single()).IsEqualTo((byte) 2);
-        await Assert.That(pixels).IsEquivalentTo(rgba);
+        await Bytes.AreEqual(pixels, rgba);
     }
 
     [Test]
@@ -54,7 +54,7 @@ public class PngEncoderTests
         var (colorType, _, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
-        await Assert.That(pixels).IsEquivalentTo(rgba);
+        await Bytes.AreEqual(pixels, rgba);
     }
 
     [Test]
@@ -66,7 +66,7 @@ public class PngEncoderTests
         {
             var png = PngEncoder.Encode(rgba, width, height, 96, level);
             var (_, _, pixels) = Decode(png, width, height);
-            await Assert.That(pixels).IsEquivalentTo(rgba);
+            await Bytes.AreEqual(pixels, rgba);
             sizes.Add(png.Length);
         }
 
@@ -90,7 +90,7 @@ public class PngEncoderTests
         var (colorType, _, pixels) = Decode(png, width, height);
 
         await Assert.That(colorType).IsEqualTo((byte) 6);
-        await Assert.That(pixels).IsEquivalentTo(rgba);
+        await Bytes.AreEqual(pixels, rgba);
     }
 
     // A pixel count that is not a multiple of any vector width, so the scalar tail of the gray
@@ -115,7 +115,7 @@ public class PngEncoderTests
         var (colorType, _, pixels) = Decode(png, oddWidth, oddHeight);
 
         await Assert.That(colorType).IsEqualTo((byte) 0);
-        await Assert.That(pixels).IsEquivalentTo(Reds(rgba));
+        await Bytes.AreEqual(pixels, Reds(rgba));
     }
 
     // The encoder's table driven CRC must agree with the bit by bit definition on every chunk,

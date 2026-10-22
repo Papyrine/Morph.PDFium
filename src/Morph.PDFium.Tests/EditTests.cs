@@ -152,7 +152,7 @@ public class EditTests
         var attachments = reloaded.GetAttachments();
         await Assert.That(attachments.Count).IsEqualTo(1);
         await Assert.That(attachments[0].Name).IsEqualTo("data.bin");
-        await Assert.That(attachments[0].GetData()).IsEquivalentTo(payload);
+        await Bytes.AreEqual(attachments[0].GetData(), payload);
     }
 
     [Test]
@@ -198,7 +198,7 @@ public class EditTests
 
         // The name is free again, and the new attachment is usable.
         var again = document.AddAttachment("a.bin", [7]);
-        await Assert.That(again.GetData()).IsEquivalentTo(new byte[] { 7 });
+        await Bytes.AreEqual(again.GetData(), new byte[] { 7 });
     }
 
     // One page with a line of text and a stamp annotation whose appearance is a red square,

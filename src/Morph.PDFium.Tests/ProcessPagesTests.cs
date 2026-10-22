@@ -18,7 +18,7 @@ public class ProcessPagesTests
         {
             using var page = document.LoadPage(index);
             await Assert.That(parallel[index].Text).IsEqualTo(page.GetText());
-            await Assert.That(parallel[index].Png).IsEquivalentTo(page.Render());
+            await Bytes.AreEqual(parallel[index].Png, page.Render());
         }
     }
 
@@ -70,7 +70,7 @@ public class ProcessPagesTests
         await Assert.That(pages.Count).IsEqualTo(document.PageCount);
         for (var index = 0; index < pages.Count; index++)
         {
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index, options));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index, options));
         }
     }
 }

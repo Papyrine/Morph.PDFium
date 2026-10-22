@@ -15,8 +15,8 @@ public class PageRenderTests
         for (var index = 0; index < document.PageCount; index++)
         {
             using var page = document.LoadPage(index);
-            await Assert.That(page.Render()).IsEquivalentTo(document.RenderPage(index));
-            await Assert.That(page.Render(options)).IsEquivalentTo(document.RenderPage(index, options));
+            await Bytes.AreEqual(page.Render(), document.RenderPage(index));
+            await Bytes.AreEqual(page.Render(options), document.RenderPage(index, options));
         }
     }
 
@@ -30,8 +30,8 @@ public class PageRenderTests
         {
             using var page = document.LoadPage(index);
             var text = page.GetTextRectangles().Single();
-            await Assert.That(page.Render()).IsEquivalentTo(document.RenderPage(index));
-            await Assert.That(page.RenderRegion(text)).IsEquivalentTo(document.RenderRegion(index, text));
+            await Bytes.AreEqual(page.Render(), document.RenderPage(index));
+            await Bytes.AreEqual(page.RenderRegion(text), document.RenderRegion(index, text));
         }
     }
 

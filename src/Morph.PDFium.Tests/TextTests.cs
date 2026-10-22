@@ -110,7 +110,7 @@ public class TextTests
     {
         using var document = PdfiumDocument.Load(PdfWithNavigation());
         var bookmarks = document.GetBookmarks();
-        await Assert.That(bookmarks.Select(_ => _.Title)).IsEquivalentTo(["Direct", "Local action", "Remote"]);
+        await Assert.That(bookmarks.Select(_ => _.Title)).IsEquivalentTo(["Direct", "Local action", "Remote"], CollectionOrdering.Matching);
 
         await Assert.That(bookmarks[0].Destination!.Value.PageIndex).IsEqualTo(1);
         await Assert.That(bookmarks[0].Action).IsNull();

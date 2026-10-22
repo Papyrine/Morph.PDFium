@@ -88,11 +88,11 @@ public class HtmlTests
                     return $"images/{index + 1}.png";
                 }
             });
-        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3]);
+        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3], CollectionOrdering.Matching);
         for (var index = 0; index < 4; index++)
         {
             await Assert.That(html).Contains($"<img src=\"images/{index + 1}.png\"");
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index));
         }
 
         // The pages come out in order.
@@ -119,11 +119,11 @@ public class HtmlTests
                     return $"images/{index + 1}.webp";
                 }
             });
-        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3]);
+        await Assert.That(pages.Keys.Order()).IsEquivalentTo([0, 1, 2, 3], CollectionOrdering.Matching);
         for (var index = 0; index < 4; index++)
         {
             await Assert.That(html).Contains($"<img src=\"images/{index + 1}.webp\"");
-            await Assert.That(pages[index]).IsEquivalentTo(document.RenderPage(index, render));
+            await Bytes.AreEqual(pages[index], document.RenderPage(index, render));
         }
     }
 
@@ -137,6 +137,7 @@ public class HtmlTests
         };
         byte[]? png = null;
         var size = (Width: 0, Height: 0, Dpi: 0d);
+        var pixelBytes = 0;
         var html = document.RenderPageHtml(
             0,
             new()
@@ -147,14 +148,17 @@ public class HtmlTests
                 {
                     png = PngEncoder.Encode(image.Pixels, image.Width, image.Height, image.Dpi, (int) render.CompressionLevel);
                     size = (image.Width, image.Height, image.Dpi);
+                    pixelBytes = image.Pixels.Length;
                     return "page.jpg";
                 }
             });
         await Assert.That(html).Contains("<img src=\"page.jpg\"");
         // US Letter at 72 DPI: a pixel a point.
         await Assert.That(size).IsEqualTo((612, 792, 72d));
+        // Exactly the image's pixels, four bytes each, not the larger pooled buffer behind them.
+        await Assert.That(pixelBytes).IsEqualTo(612 * 792 * 4);
         using var page = document.LoadPage(0);
-        await Assert.That(png).IsEquivalentTo(page.RenderWithoutText(render, false));
+        await Bytes.AreEqual(png!, page.RenderWithoutText(render, false));
     }
 
     // Pages of three sizes, portrait, landscape and fractional, the first size twice, each
@@ -275,15 +279,15 @@ public class HtmlTests
         const string drawing = "1 0 0 rg 72 500 200 100 re f 0 0 1 RG 4 w 300 300 m 500 450 l S";
         using var document = PdfiumDocument.Load(SinglePage($"{drawing} 0 g BT /F1 24 Tf 72 700 Td (Some text) Tj ET BT /F1 12 Tf 1 Tr 72 650 Td (Outlined) Tj ET"));
         var background = Background(document);
-        await Assert.That(background).IsEquivalentTo(RenderOf(drawing));
-        await Assert.That(background).IsNotEquivalentTo(document.RenderPage(0));
+        await Bytes.AreEqual(background, RenderOf(drawing));
+        await Bytes.AreDifferent(background, document.RenderPage(0));
     }
 
     [Test]
     public async Task BackgroundLeavesOutTextInForms()
     {
         using var document = PdfiumDocument.Load(SinglePage("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f BT /F1 24 Tf 72 700 Td (In a form) Tj ET"));
-        await Assert.That(Background(document)).IsEquivalentTo(RenderOf("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f"));
+        await Bytes.AreEqual(Background(document), RenderOf("q 1 0 0 1 0 -100 cm /Fm1 Do Q", "0 1 0 rg 72 500 200 100 re f"));
     }
 
     [Test]
@@ -293,7 +297,7 @@ public class HtmlTests
         // background, the text must still clip, as mode 7 does without drawing.
         const string clipped = "q BT /F1 120 Tf {0} Tr 72 500 Td (CLIP) Tj ET 0 0 1 rg 0 0 612 792 re f Q";
         using var document = PdfiumDocument.Load(SinglePage(string.Format(clipped, 4)));
-        await Assert.That(Background(document)).IsEquivalentTo(RenderOf(string.Format(clipped, 7)));
+        await Bytes.AreEqual(Background(document), RenderOf(string.Format(clipped, 7)));
     }
 
     // Every kind of text the background leaves out: over a drawing, outlined, inside a form,
@@ -381,9 +385,9 @@ public class HtmlTests
             });
 
         // The same page, the document and a save all show the text as before.
-        await Assert.That(page.Render()).IsEquivalentTo(render);
-        await Assert.That(document.RenderPage(0)).IsEquivalentTo(render);
-        await Assert.That(WithoutTrailer(document.Save())).IsEquivalentTo(saved);
+        await Bytes.AreEqual(page.Render(), render);
+        await Bytes.AreEqual(document.RenderPage(0), render);
+        await Bytes.AreEqual(WithoutTrailer(document.Save()), saved);
         await Assert.That(page.GetText()).IsEqualTo(text);
     }
 
@@ -414,7 +418,7 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // The document's own conversions hide the text in place, on a page they load and dispose
@@ -444,7 +448,7 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Assert.That(EditAndSave(true)).IsEquivalentTo(EditAndSave(false));
+        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // Every save writes a fresh random file identifier into the trailer, so saves are compared
