@@ -22,14 +22,12 @@ public class DeterminismTests
         using var document = PdfiumDocument.Load(pdf);
         var png = document.RenderPage(page, dpi: 96);
         var expected = await File.ReadAllBytesAsync(Path.Combine(ProjectFiles.ProjectDirectory, $"{snapshot}.verified.png"));
-        var same = png.AsSpan().CommonPrefixLength(expected);
-        if (same != png.Length || same != expected.Length)
+        if (!png.AsSpan().SequenceEqual(expected))
         {
             // Beside the snapshot, where CI's upload of received files picks it up.
             await File.WriteAllBytesAsync(Path.Combine(ProjectFiles.ProjectDirectory, $"{snapshot}.exact.received.png"), png);
         }
 
-        await Assert.That(png.Length).IsEqualTo(expected.Length);
-        await Assert.That(same).IsEqualTo(expected.Length);
+        await Bytes.AreEqual(png, expected);
     }
 }
