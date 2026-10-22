@@ -362,7 +362,7 @@ public sealed partial class PdfPage
         // PDFium finds URLs in the text whether or not a link annotation already covers them.
         foreach (var webLink in GetWebLinks())
         {
-            var href = HtmlWriter.SafeUrl(webLink.Url);
+            var href = HtmlWriter.SafeUrl(webLink.Url, options);
             if (href is null || !hrefs.Add(href))
             {
                 continue;

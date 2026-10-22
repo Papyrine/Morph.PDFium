@@ -309,6 +309,25 @@ public class Samples
     }
 
     [Test]
+    public async Task RenderHtmlUntrustedLinks()
+    {
+        #region RenderHtmlUntrustedLinks
+
+        using var document = PdfiumDocument.Load("multi-page.pdf");
+        // Only web and mail links, and links between the document's pages
+        var html = document.RenderHtml(
+            new HtmlOptions
+            {
+                AllowedLinkSchemes = ["http", "https", "mailto"],
+                AllowRelativeLinks = false
+            });
+
+        #endregion
+
+        await Assert.That(html).Contains("<img ");
+    }
+
+    [Test]
     public async Task RenderRegion()
     {
         #region RenderRegion

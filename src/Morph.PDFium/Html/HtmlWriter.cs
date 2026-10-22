@@ -286,7 +286,7 @@ static class HtmlWriter
     /// <summary>
     /// Where a link or bookmark should point: a page of this document by its id, a URL, or a
     /// file beside this one. Null for a target HTML cannot reach, or should not: a launch, a
-    /// file embedded in the PDF, a URL of a scheme that is not on the safe list, or a page past
+    /// file embedded in the PDF, a URL that <see cref="SafeUrl"/> rejects, or a page past
     /// <see cref="HtmlOptions.MaxPages"/>.
     /// </summary>
     public static string? Href(PdfDestination? destination, PdfAction? action, HtmlOptions options)
@@ -303,9 +303,9 @@ static class HtmlWriter
 
         return target.Type switch
         {
-            PdfActionType.Uri => SafeUrl(target.Uri),
+            PdfActionType.Uri => SafeUrl(target.Uri, options),
             PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => PageHref(goTo.PageIndex, options),
-            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath),
+            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath, options),
             _ => null
         };
     }
@@ -320,14 +320,12 @@ static class HtmlWriter
         return "#" + PageId(options.PageIdPrefix, index);
     }
 
-    static readonly string[] safeSchemes = ["http", "https", "mailto", "ftp", "tel"];
-
     /// <summary>
     /// The URL with control characters and surrounding white space removed, or null when it is
-    /// empty or has a scheme other than http, https, mailto, ftp and tel. A URL with no scheme
-    /// is a relative reference, and kept.
+    /// empty or has a scheme not in <see cref="HtmlOptions.AllowedLinkSchemes"/>. A URL with no
+    /// scheme is a relative reference, kept only with <see cref="HtmlOptions.AllowRelativeLinks"/>.
     /// </summary>
-    public static string? SafeUrl(string? url)
+    public static string? SafeUrl(string? url, HtmlOptions options)
     {
         if (url is null)
         {
@@ -356,13 +354,18 @@ static class HtmlWriter
         var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
         if (colon < 0 || (delimiter >= 0 && delimiter < colon))
         {
-            return cleaned;
+            if (options.AllowRelativeLinks)
+            {
+                return cleaned;
+            }
+
+            return null;
         }
 
-        var scheme = cleaned[..colon];
-        foreach (var safe in safeSchemes)
+        var scheme = cleaned.AsSpan(0, colon);
+        foreach (var allowed in options.AllowedLinkSchemes)
         {
-            if (string.Equals(scheme, safe, StringComparison.OrdinalIgnoreCase))
+            if (scheme.Equals(allowed, StringComparison.OrdinalIgnoreCase))
             {
                 return cleaned;
             }

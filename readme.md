@@ -152,7 +152,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L314-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L333-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -252,7 +252,22 @@ var fragment = document.RenderPageHtml(
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L275-L287' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Only http, https, mailto, ftp and tel links and relative references are kept: `javascript:` links, launch actions and links into embedded files are dropped.
+Only http, https, mailto, ftp and tel links and relative references are kept: `javascript:` links, launch actions and links into embedded files are dropped. For PDFs from an untrusted source, narrow that with `HtmlOptions.AllowedLinkSchemes` and `AllowRelativeLinks`. Links to the document's own pages are kept either way.
+
+<!-- snippet: RenderHtmlUntrustedLinks -->
+<a id='snippet-RenderHtmlUntrustedLinks'></a>
+```cs
+using var document = PdfiumDocument.Load("multi-page.pdf");
+// Only web and mail links, and links between the document's pages
+var html = document.RenderHtml(
+    new HtmlOptions
+    {
+        AllowedLinkSchemes = ["http", "https", "mailto"],
+        AllowRelativeLinks = false
+    });
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L314-L325' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlUntrustedLinks' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ### Extract text
@@ -347,7 +362,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L335-L347' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L354-L366' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -367,7 +382,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L356-L367' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L375-L386' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -380,7 +395,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L375-L381' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L394-L400' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).
