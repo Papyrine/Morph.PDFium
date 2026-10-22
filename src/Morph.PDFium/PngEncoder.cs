@@ -6,7 +6,7 @@
 static class PngEncoder
 {
     static readonly byte[] signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-    static readonly uint[] crcTable = BuildCrcTable();
+    static readonly uint[] crcTables = BuildCrcTables();
 
     // PNG scanline filter types.
     const byte None = 0;
@@ -20,17 +20,35 @@ static class PngEncoder
         // Most pages are dark text on a white background, which anti-aliases to shades of
         // gray. Such a page loses nothing as a one byte per pixel grayscale image, and it
         // gives deflate a quarter of the data, so it encodes faster and to a smaller file.
-        var gray = IsOpaqueGray(rgba);
-        var filter = ChooseFilter(rgba, width, height, gray);
-        // A page's PNG runs to hundreds of kilobytes, so the output grows through pooled
-        // buffers rather than a fresh array at each doubling.
-        using var output = new PooledBuffer(rgba.Length / 8);
-        output.Write(signature);
-        WriteChunk(output, "IHDR"u8, BuildHeader(width, height, gray));
-        WriteChunk(output, "pHYs"u8, BuildPhysicalDimensions(dpi));
-        WriteImageData(output, rgba, width, height, gray, filter, compressionLevel);
-        WriteChunk(output, "IEND"u8, []);
-        return output.ToArray();
+        // One pass over the pixels both settles whether this is such a page and, when it is,
+        // extracts the gray plane that the rest of the encoder then reads in place of rgba.
+        var pixelCount = width * height;
+        var plane = ArrayPool<byte>.Shared.Rent(pixelCount);
+        try
+        {
+            var gray = TryExtractGrayPlane(rgba, plane.AsSpan(0, pixelCount));
+            var stride = ScanlineLength(width, gray);
+            var scanlines = rgba;
+            if (gray)
+            {
+                scanlines = plane.AsSpan(0, pixelCount);
+            }
+
+            var filter = ChooseFilter(scanlines, stride, height);
+            // A page's PNG runs to hundreds of kilobytes, so the output grows through pooled
+            // buffers rather than a fresh array at each doubling.
+            using var output = new PooledBuffer(rgba.Length / 8);
+            output.Write(signature);
+            WriteChunk(output, "IHDR"u8, BuildHeader(width, height, gray));
+            WriteChunk(output, "pHYs"u8, BuildPhysicalDimensions(dpi));
+            WriteImageData(output, scanlines, stride, height, filter, compressionLevel);
+            WriteChunk(output, "IEND"u8, []);
+            return output.ToArray();
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(plane);
+        }
     }
 
     static byte[] BuildHeader(int width, int height, bool gray)
@@ -45,10 +63,12 @@ static class PngEncoder
         return header;
     }
 
-    // Whether every pixel is opaque with equal red, green and blue. Read as a little endian
-    // word an RGBA pixel is R | G << 8 | B << 16 | A << 24, so it qualifies when it equals its
-    // red byte copied into the other two color bytes with the alpha byte set.
-    static bool IsOpaqueGray(ReadOnlySpan<byte> rgba)
+    // Whether every pixel is opaque with equal red, green and blue, writing each pixel's red
+    // byte, which is then its level, to plane along the way. Read as a little endian word an
+    // RGBA pixel is R | G << 8 | B << 16 | A << 24, so it qualifies when it equals its red byte
+    // copied into the other two color bytes with the alpha byte set. Stops at the first pixel
+    // that does not qualify, leaving the rest of plane unwritten.
+    static bool TryExtractGrayPlane(ReadOnlySpan<byte> rgba, Span<byte> plane)
     {
         if (!BitConverter.IsLittleEndian)
         {
@@ -56,19 +76,20 @@ static class PngEncoder
         }
 
         var pixels = MemoryMarshal.Cast<byte, uint>(rgba);
+        pixels = pixels[..Math.Min(pixels.Length, plane.Length)];
         var index = 0;
-        if (Vector.IsHardwareAccelerated)
+        if (Vector256.IsHardwareAccelerated)
         {
-            var red = new Vector<uint>(0xFF);
-            var spread = new Vector<uint>(0x010101);
-            var opaque = new Vector<uint>(0xFF000000);
-            for (; index <= pixels.Length - Vector<uint>.Count; index += Vector<uint>.Count)
+            if (!ExtractGray256(pixels, plane, ref index))
             {
-                var pixel = new Vector<uint>(pixels[index..]);
-                if (pixel != (((pixel & red) * spread) | opaque))
-                {
-                    return false;
-                }
+                return false;
+            }
+        }
+        else if (Vector128.IsHardwareAccelerated)
+        {
+            if (!ExtractGray128(pixels, plane, ref index))
+            {
+                return false;
             }
         }
 
@@ -79,6 +100,82 @@ static class PngEncoder
             {
                 return false;
             }
+
+            plane[index] = (byte) pixel;
+        }
+
+        return true;
+    }
+
+    // The vector form of the loop above, in blocks of four vectors, advancing index past the
+    // blocks done; false once a block holds a pixel that is not opaque gray. Once masked to
+    // the red byte every value fits the narrower type, so the saturating narrows, which have
+    // single instruction forms, cannot clip and act as truncation.
+    static bool ExtractGray256(ReadOnlySpan<uint> pixels, Span<byte> plane, ref int index)
+    {
+        var red = Vector256.Create(0xFFu);
+        var spread = Vector256.Create(0x010101u);
+        var opaque = Vector256.Create(0xFF000000u);
+        var lanes = Vector256<uint>.Count;
+        ref var source = ref MemoryMarshal.GetReference(pixels);
+        ref var target = ref MemoryMarshal.GetReference(plane);
+        for (; index <= pixels.Length - lanes * 4; index += lanes * 4)
+        {
+            var first = Vector256.LoadUnsafe(ref source, (nuint) index);
+            var second = Vector256.LoadUnsafe(ref source, (nuint) (index + lanes));
+            var third = Vector256.LoadUnsafe(ref source, (nuint) (index + lanes * 2));
+            var fourth = Vector256.LoadUnsafe(ref source, (nuint) (index + lanes * 3));
+            var firstRed = first & red;
+            var secondRed = second & red;
+            var thirdRed = third & red;
+            var fourthRed = fourth & red;
+            var gray = Vector256.Equals(first, (firstRed * spread) | opaque)
+                       & Vector256.Equals(second, (secondRed * spread) | opaque)
+                       & Vector256.Equals(third, (thirdRed * spread) | opaque)
+                       & Vector256.Equals(fourth, (fourthRed * spread) | opaque);
+            if (gray != Vector256<uint>.AllBitsSet)
+            {
+                return false;
+            }
+
+            var low = Vector256.NarrowWithSaturation(firstRed, secondRed);
+            var high = Vector256.NarrowWithSaturation(thirdRed, fourthRed);
+            Vector256.NarrowWithSaturation(low, high).StoreUnsafe(ref target, (nuint) index);
+        }
+
+        return true;
+    }
+
+    static bool ExtractGray128(ReadOnlySpan<uint> pixels, Span<byte> plane, ref int index)
+    {
+        var red = Vector128.Create(0xFFu);
+        var spread = Vector128.Create(0x010101u);
+        var opaque = Vector128.Create(0xFF000000u);
+        var lanes = Vector128<uint>.Count;
+        ref var source = ref MemoryMarshal.GetReference(pixels);
+        ref var target = ref MemoryMarshal.GetReference(plane);
+        for (; index <= pixels.Length - lanes * 4; index += lanes * 4)
+        {
+            var first = Vector128.LoadUnsafe(ref source, (nuint) index);
+            var second = Vector128.LoadUnsafe(ref source, (nuint) (index + lanes));
+            var third = Vector128.LoadUnsafe(ref source, (nuint) (index + lanes * 2));
+            var fourth = Vector128.LoadUnsafe(ref source, (nuint) (index + lanes * 3));
+            var firstRed = first & red;
+            var secondRed = second & red;
+            var thirdRed = third & red;
+            var fourthRed = fourth & red;
+            var gray = Vector128.Equals(first, (firstRed * spread) | opaque)
+                       & Vector128.Equals(second, (secondRed * spread) | opaque)
+                       & Vector128.Equals(third, (thirdRed * spread) | opaque)
+                       & Vector128.Equals(fourth, (fourthRed * spread) | opaque);
+            if (gray != Vector128<uint>.AllBitsSet)
+            {
+                return false;
+            }
+
+            var low = Vector128.NarrowWithSaturation(firstRed, secondRed);
+            var high = Vector128.NarrowWithSaturation(thirdRed, fourthRed);
+            Vector128.NarrowWithSaturation(low, high).StoreUnsafe(ref target, (nuint) index);
         }
 
         return true;
@@ -98,13 +195,13 @@ static class PngEncoder
     // Writes the IDAT chunk. The compressed data goes straight into the output, and the chunk
     // length and CRC, which are only known once it is all written, are filled in afterwards.
     // That avoids compressing into a buffer of its own and copying the result across.
-    static void WriteImageData(PooledBuffer output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter, int compressionLevel)
+    static void WriteImageData(PooledBuffer output, ReadOnlySpan<byte> scanlines, int stride, int height, byte filter, int compressionLevel)
     {
         var start = (int) output.Length;
         Span<byte> word = stackalloc byte[4];
         output.Write(word); // length, patched below
         output.Write("IDAT"u8);
-        Compress(output, rgba, width, height, gray, filter, compressionLevel);
+        Compress(output, scanlines, stride, height, filter, compressionLevel);
 
         var chunk = output.Written[start..];
         BinaryPrimitives.WriteInt32BigEndian(chunk, chunk.Length - 8);
@@ -114,9 +211,10 @@ static class PngEncoder
         output.Write(word);
     }
 
-    static void Compress(Stream output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter, int compressionLevel)
+    // scanlines holds the image's rows, stride bytes each, in the form PNG stores them: the gray
+    // plane, or the RGBA pixels as they are.
+    static void Compress(Stream output, ReadOnlySpan<byte> scanlines, int stride, int height, byte filter, int compressionLevel)
     {
-        var stride = ScanlineLength(width, gray);
         var options = new ZLibCompressionOptions
         {
             CompressionLevel = compressionLevel
@@ -127,19 +225,12 @@ static class PngEncoder
         filtered[0] = filter;
         // The Up filter subtracts the row above; above the first row that is defined as all zeros.
         ReadOnlySpan<byte> previous = new byte[stride];
-        // A gray image's scanlines are extracted into these two, which take turns holding the
-        // current row and the one above it. An RGBA image's scanlines are read in place.
-        Span<byte> scratch = gray ? new byte[stride] : [];
-        Span<byte> spare = gray ? new byte[stride] : [];
         for (var y = 0; y < height; y++)
         {
-            var row = Scanline(rgba, width, y, gray, scratch);
+            var row = scanlines.Slice(y * stride, stride);
             Filter(filter, row, previous, filtered.AsSpan(1));
             zlib.Write(filtered);
             previous = row;
-            var swap = scratch;
-            scratch = spare;
-            spare = swap;
         }
     }
 
@@ -150,9 +241,8 @@ static class PngEncoder
     // turns most of the image into runs of near zero. Which kind of image this is gets settled
     // by compressing a sample of its rows both ways at the fastest level and keeping whichever
     // came out smaller.
-    static byte ChooseFilter(ReadOnlySpan<byte> rgba, int width, int height, bool gray)
+    static byte ChooseFilter(ReadOnlySpan<byte> scanlines, int stride, int height)
     {
-        var stride = ScanlineLength(width, gray);
         var step = Math.Max(1, height / sampleRows);
         using var noneSize = new CountingStream();
         using var upSize = new CountingStream();
@@ -160,13 +250,11 @@ static class PngEncoder
         using (var up = new ZLibStream(upSize, CompressionLevel.Fastest, leaveOpen: true))
         {
             var filtered = new byte[stride + 1];
-            Span<byte> scratch = gray ? new byte[stride] : [];
-            Span<byte> scratchAbove = gray ? new byte[stride] : [];
             ReadOnlySpan<byte> zeros = new byte[stride];
             for (var y = 0; y < height; y += step)
             {
-                var row = Scanline(rgba, width, y, gray, scratch);
-                var previous = y == 0 ? zeros : Scanline(rgba, width, y - 1, gray, scratchAbove);
+                var row = scanlines.Slice(y * stride, stride);
+                var previous = y == 0 ? zeros : scanlines.Slice((y - 1) * stride, stride);
                 filtered[0] = None;
                 Filter(None, row, previous, filtered.AsSpan(1));
                 none.Write(filtered);
@@ -194,20 +282,6 @@ static class PngEncoder
         return width * 4;
     }
 
-    // The PNG scanline for source row y: the RGBA bytes as they are, or for a gray image each
-    // pixel's red byte, which is its level, extracted into scratch.
-    static ReadOnlySpan<byte> Scanline(ReadOnlySpan<byte> rgba, int width, int y, bool gray, Span<byte> scratch)
-    {
-        var row = rgba.Slice(y * width * 4, width * 4);
-        if (!gray)
-        {
-            return row;
-        }
-
-        ExtractRed(row, scratch);
-        return scratch;
-    }
-
     static void Filter(byte filter, ReadOnlySpan<byte> row, ReadOnlySpan<byte> previous, Span<byte> destination)
     {
         if (filter == Up)
@@ -217,38 +291,6 @@ static class PngEncoder
         }
 
         row.CopyTo(destination);
-    }
-
-    // Copies the red byte of each RGBA pixel to destination.
-    static void ExtractRed(ReadOnlySpan<byte> rgba, Span<byte> destination)
-    {
-        var pixels = MemoryMarshal.Cast<byte, uint>(rgba);
-        var count = Math.Min(pixels.Length, destination.Length);
-        var index = 0;
-        if (Vector128.IsHardwareAccelerated)
-        {
-            // Once masked to the red byte every value fits the narrower type, so the saturating
-            // narrows, which have single instruction forms, cannot clip and act as truncation.
-            var red = Vector128.Create(0xFFu);
-            var lanes = Vector128<uint>.Count;
-            ref var source = ref MemoryMarshal.GetReference(pixels);
-            ref var target = ref MemoryMarshal.GetReference(destination);
-            for (; index <= count - lanes * 4; index += lanes * 4)
-            {
-                var low = Vector128.NarrowWithSaturation(
-                    Vector128.LoadUnsafe(ref source, (nuint) index) & red,
-                    Vector128.LoadUnsafe(ref source, (nuint) (index + lanes)) & red);
-                var high = Vector128.NarrowWithSaturation(
-                    Vector128.LoadUnsafe(ref source, (nuint) (index + lanes * 2)) & red,
-                    Vector128.LoadUnsafe(ref source, (nuint) (index + lanes * 3)) & red);
-                Vector128.NarrowWithSaturation(low, high).StoreUnsafe(ref target, (nuint) index);
-            }
-        }
-
-        for (; index < count; index++)
-        {
-            destination[index] = (byte) pixels[index];
-        }
     }
 
     // destination = left - right per byte, wrapping. The spans are all one row long.
@@ -284,19 +326,40 @@ static class PngEncoder
         stream.Write(buffer);
     }
 
+    // CRC-32 over the PNG polynomial by slicing-by-eight: eight bytes per step through eight
+    // tables rather than one byte per step through one. The byte at a time loop depends on
+    // its own previous result, so it ran at a few cycles per byte and took a noticeable share
+    // of encoding time; this is three to four times faster without any platform specific code.
     static uint UpdateCrc(uint crc, ReadOnlySpan<byte> data)
     {
-        foreach (var value in data)
+        var index = 0;
+        for (; index + 8 <= data.Length; index += 8)
         {
-            crc = crcTable[(crc ^ value) & 0xFF] ^ (crc >> 8);
+            var one = BinaryPrimitives.ReadUInt32LittleEndian(data[index..]) ^ crc;
+            var two = BinaryPrimitives.ReadUInt32LittleEndian(data[(index + 4)..]);
+            crc = crcTables[7 * 256 + (one & 0xFF)]
+                  ^ crcTables[6 * 256 + ((one >> 8) & 0xFF)]
+                  ^ crcTables[5 * 256 + ((one >> 16) & 0xFF)]
+                  ^ crcTables[4 * 256 + (one >> 24)]
+                  ^ crcTables[3 * 256 + (two & 0xFF)]
+                  ^ crcTables[2 * 256 + ((two >> 8) & 0xFF)]
+                  ^ crcTables[256 + ((two >> 16) & 0xFF)]
+                  ^ crcTables[two >> 24];
+        }
+
+        for (; index < data.Length; index++)
+        {
+            crc = crcTables[(crc ^ data[index]) & 0xFF] ^ (crc >> 8);
         }
 
         return crc;
     }
 
-    static uint[] BuildCrcTable()
+    // Eight tables of 256 entries. Table k holds, for each byte value, the CRC of that byte
+    // followed by k zero bytes, which is what lets eight bytes be folded in at once.
+    static uint[] BuildCrcTables()
     {
-        var table = new uint[256];
+        var tables = new uint[8 * 256];
         for (uint index = 0; index < 256; index++)
         {
             var entry = index;
@@ -305,10 +368,21 @@ static class PngEncoder
                 entry = (entry & 1) == 1 ? 0xEDB88320 ^ (entry >> 1) : entry >> 1;
             }
 
-            table[index] = entry;
+            tables[index] = entry;
         }
 
-        return table;
+        // Each further table is the previous one advanced by a zero byte, which needs the whole
+        // of the first table, hence the separate loop.
+        for (var k = 1; k < 8; k++)
+        {
+            for (var index = 0; index < 256; index++)
+            {
+                var previous = tables[(k - 1) * 256 + index];
+                tables[k * 256 + index] = tables[previous & 0xFF] ^ (previous >> 8);
+            }
+        }
+
+        return tables;
     }
 
     // A write-only stream over an array rented from the shared pool, grown by renting a larger
