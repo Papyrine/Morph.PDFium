@@ -1,6 +1,6 @@
 // Bindings from fpdfview.h, fpdf_doc.h and fpdf_ext.h for document-level metadata
 // beyond the information dictionary: file version, permissions, page mode, labels
-// and the trailer file identifier.
+// the trailer file identifier and the catalog language.
 
 static partial class PdfiumNative
 {
@@ -25,4 +25,8 @@ static partial class PdfiumNative
 
     [LibraryImport(library)]
     internal static partial uint FPDF_GetFileIdentifier(IntPtr document, int idType, Span<byte> buffer, uint length);
+
+    // From fpdf_catalog.h: the catalog's /Lang entry, UTF-16LE, length in bytes.
+    [LibraryImport(library)]
+    internal static partial uint FPDFCatalog_GetLanguage(IntPtr document, Span<byte> buffer, uint length);
 }

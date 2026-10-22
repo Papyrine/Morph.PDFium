@@ -57,6 +57,14 @@ jobs:
         # Packs as a side effect (GeneratePackageOnBuild), populating ./nugets.
         run: dotnet build src --configuration Release ${{ env.VERSION_ARGUMENT }}
 
+      # HtmlBrowserTests installs Chromium for Playwright on first use. Keyed on the package
+      # versions, so a Playwright upgrade fetches the browser it expects.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/Directory.Packages.props') }}
+
       - name: Test
         run: dotnet run --project src/Morph.PDFium.Tests --configuration Release --no-build -- --report-trx
 

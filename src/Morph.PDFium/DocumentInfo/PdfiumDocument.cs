@@ -97,6 +97,19 @@ public sealed partial class PdfiumDocument
     }
 
     /// <summary>
+    /// The document's natural language from the catalog's /Lang entry, as a language tag such
+    /// as "en-US", or null when the document declares none.
+    /// </summary>
+    public string? GetLanguage()
+    {
+        lock (PdfiumNative.Sync)
+        {
+            var doc = Handle;
+            return Interop.Utf16ByLength(doc, static (state, buffer, length) => PdfiumNative.FPDFCatalog_GetLanguage(state, buffer, length));
+        }
+    }
+
+    /// <summary>
     /// The trailer file identifier of the requested <paramref name="type"/> as a byte string
     /// rendered in lowercase hexadecimal, or null when the document has no such identifier.
     /// </summary>

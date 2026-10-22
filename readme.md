@@ -5,7 +5,7 @@
 
 A .NET wrapper over [PDFium](https://pdfium.googlesource.com/pdfium/), using the prebuilt native binaries from [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) (Windows, Linux, and macOS). No image library dependency: PNG encoding is built in.
 
-It renders pages to PNG and also covers text extraction and search, navigation (bookmarks, destinations, links), annotations, AcroForm fields, page manipulation (import/merge, rotate, insert, delete, flatten), content editing, save, attachments and signatures. See [native API coverage](docs/native-api-coverage.md) for the full wrapped surface.
+It renders pages to PNG or HTML and also covers text extraction and search, navigation (bookmarks, destinations, links), annotations, AcroForm fields, page manipulation (import/merge, rotate, insert, delete, flatten), content editing, save, attachments and signatures. See [native API coverage](docs/native-api-coverage.md) for the full wrapped surface.
 
 **See [Milestones](../../milestones?state=closed) for release notes.**
 
@@ -152,7 +152,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L225-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L295-L308' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -171,6 +171,69 @@ var png = page.Render(dpi: 96);
 ```
 <sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L208-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderOpenPage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+
+### Render to HTML
+
+`RenderHtml` converts a document to a single HTML page. Each page is its rendered image with the page's text laid exactly over it, transparent, in an inline SVG, so the HTML looks like the PDF while its text can be selected, copied and found with the browser's search. Links to other pages, URLs and neighbouring files stay clickable, and the outline becomes a list of links at the top. The pages are rendered in parallel, as `ProcessPages` does. Each page prints on a sheet of its own size, with no margins, so a document mixing portrait, landscape and odd sizes prints one sheet per page.
+
+<!-- snippet: RenderHtml -->
+<a id='snippet-RenderHtml'></a>
+```cs
+using var document = PdfiumDocument.Load("multi-page.pdf");
+// Each page's image with its text selectable over it; the images are embedded
+var html = document.RenderHtml();
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L225-L231' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtml' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Images are embedded as data URIs by default, which keeps the HTML self-contained. `HtmlOptions.ImageUrl` lets them be written out as files instead, and `HtmlOptions.Render` sets how they are rendered. Images after the first page load lazily as they are scrolled near; set `LazyLoadImages = false` for HTML that is printed or captured without scrolling.
+
+For a long document, pass a `TextWriter` (a `StreamWriter` over a file, say) to `RenderHtml`. Each page is written as soon as it and the pages before it are done, so only a few pages are in memory at once. Converting 1,000 pages at 150 DPI this way peaks at about half the memory of building the whole string.
+
+<!-- snippet: RenderHtmlOptions -->
+<a id='snippet-RenderHtmlOptions'></a>
+```cs
+using var document = PdfiumDocument.Load("multi-page.pdf");
+var html = document.RenderHtml(
+    new HtmlOptions
+    {
+        Render = new()
+        {
+            Dpi = 150
+        },
+        // Write each page's image beside the HTML rather than embedding it
+        ImageUrl = (index, png) =>
+        {
+            var name = $"page{index + 1}.png";
+            File.WriteAllBytes(Path.Combine(directory, name), png);
+            return name;
+        }
+    });
+File.WriteAllText(Path.Combine(directory, "document.html"), html);
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L242-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image and make the text visible. The text keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over.
+
+<!-- snippet: RenderTextHtml -->
+<a id='snippet-RenderTextHtml'></a>
+```cs
+using var document = PdfiumDocument.Load("sample.pdf");
+// Text-only HTML: the text in its own color and style, with no page image
+var fragment = document.RenderPageHtml(
+    0,
+    new HtmlOptions
+    {
+        IncludeImage = false,
+        Text = HtmlTextMode.Visible
+    });
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L275-L287' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Only http, https, mailto, ftp and tel links and relative references are kept: `javascript:` links, launch actions and links into embedded files are dropped.
 
 
 ### Extract text
@@ -265,7 +328,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L246-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L316-L328' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -285,7 +348,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L267-L278' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L337-L348' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -298,7 +361,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L286-L292' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L356-L362' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

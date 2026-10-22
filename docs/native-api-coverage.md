@@ -1,7 +1,7 @@
 # PDFium native API coverage
 
 The bundled `pdfium.dll` (bblanchon.PDFium 151.0.7881) exports **460** functions —
-the complete public PDFium C API. Morph.PDFium currently binds **146** of them and
+the complete public PDFium C API. Morph.PDFium currently binds **159** of them and
 surfaces the meaningful subset through a managed API. This document records what is
 wrapped, and — more importantly — what is **not yet implemented**, with the reason.
 
@@ -12,8 +12,9 @@ declarations in `PdfiumNative.*.cs`; counts will drift as bindings are added.
 
 | Area | Managed entry points |
 |------|----------------------|
-| Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier` |
+| Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier`, `GetLanguage` |
 | Pages & rendering | `PageCount`, `GetPageSize(s)`, `RenderPage` (DPI or `RenderOptions`), `RenderPages`, `RenderRegion` (clip/scale), `LoadPage` → `PdfPage` |
+| HTML | `RenderHtml` (whole document), `RenderPageHtml` / `PdfPage.RenderHtml` (page fragment), `HtmlOptions`; uses char origin/loose box/angle/matrix, font info/weight, fill and stroke color, text object render mode and stroke width, generated flag and `FPDF_PageToDevice` |
 | Text & search | `PdfPage.GetText`, `GetChars`, `GetTextInRectangle`, `GetTextRectangles`, `GetCharIndexAt`, `Search` |
 | Navigation | `GetBookmarks` (outline tree), destinations, actions, `PdfPage.GetLinks`, `GetWebLinks` |
 | Annotations | `PdfPage.GetAnnotations`, `AddAnnotation`, `RemoveAnnotation` |
@@ -56,12 +57,12 @@ These are genuine candidates; they were out of scope for the first pass.
 | `FPDFPageObj_*` / `FPDFPath_*` / `FPDFImageObj_*` / `FPDFTextObj_*` / `FPDFFont_*` / `FPDFClipPath_*` / `FPDFPageObjMark_*` | ~95 | Deep content editing: image objects (load JPEG / set bitmap), path-segment iteration, font embedding from data, marked content, glyph paths, clip paths. Only text/rectangle creation and object enumeration are wrapped. |
 | `FORM_*` (`fpdf_formfill.h`) | 31 | Interactive form *events* — `FORM_OnLButtonDown`, keystrokes, focus, selection, `FORM_GetFocusedText`, etc. The wrapper does headless field read + widget render only. |
 | `FPDF_StructElement_*` (`fpdf_structtree.h`) | 23 | Beyond type/title/alt-text/children: IDs, language, marked-content IDs, parents, and the full attribute-map API. |
-| `FPDFText_*` (`fpdf_text.h`) | 23 | Char angle, matrix, loose box, fill/stroke color, font info/flags/weight, generated/hyphen flags, `FindPrev`. |
+| `FPDFText_*` (`fpdf_text.h`) | 9 | Hyphen flag, unicode-map-error flag, char/text index conversion, and the text-object editing calls (`LoadFont`, `LoadStandardFont`, `LoadCidType`, `SetCharcodes`, `SetPositions`). |
 | `FPDFPage_*` | 20 | `FPDF_MovePages`, additional-actions, media/crop/bleed/trim box get/set, `FPDFPage_TransFormWithClip`, `FPDFPage_GetThumbnailAsBitmap`. |
 | Named destinations — `FPDF_GetNamedDest*`, `FPDF_CountNamedDests` | 3 | Lookup of named destinations (bookmarks/links resolve destinations directly today). |
 | Viewer preferences — `FPDF_VIEWERREF_*` | 7 | Print scaling, duplex, copy count, print page ranges. |
 | `FPDF_ImportNPagesToOne`, `FPDF_NewXObjectFromPage`, form XObjects | 4 | N-up imposition and reusable page XObjects. |
-| `FPDF_DeviceToPage` / `FPDF_PageToDevice` | 2 | Device⇄page coordinate conversion helpers. |
-| `FPDFCatalog_*`, `FPDF_GetTrailerEnds`, `FPDF_DocumentHasValidCrossReferenceTable` | 5 | Catalog tagging/language, trailer offsets, xref-health probe. |
+| `FPDF_DeviceToPage` | 1 | Device→page coordinate conversion (`FPDF_PageToDevice` is bound, used internally for clip and HTML layout). |
+| `FPDFCatalog_IsTagged`, `FPDFCatalog_SetLanguage`, `FPDF_GetTrailerEnds`, `FPDF_DocumentHasValidCrossReferenceTable` | 4 | Catalog tagging flag and setting the language, trailer offsets, xref-health probe. |
 | `FPDFBitmap_*` (`FPDFBitmap_Create`, `GetBuffer`, `GetWidth`/`Height`/`Stride`, `GetFormat`) | 6 | Standalone bitmap manipulation; the wrapper drives bitmaps internally via the external-buffer path. |
 | `FPDFAttachment_HasKey`/`GetValueType`/`GetStringValue`/`SetStringValue` | 4 | Attachment params-dictionary access (name/subtype/data are wrapped). |

@@ -37,6 +37,45 @@ static partial class PdfiumNative
     internal static partial float FPDFText_GetCharAngle(IntPtr textPage, int index);
 
     [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFText_GetLooseCharBox(IntPtr textPage, int index, out FsRectF rect);
+
+    // Returns 1 for a character PDFium inserted (the spaces and line breaks it infers from
+    // the layout), 0 for one drawn by the page, -1 on error.
+    [LibraryImport(library)]
+    internal static partial int FPDFText_IsGenerated(IntPtr textPage, int index);
+
+    [LibraryImport(library)]
+    internal static partial uint FPDFText_GetFontInfo(IntPtr textPage, int index, Span<byte> buffer, uint length, out int flags);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFText_GetFillColor(IntPtr textPage, int index, out uint r, out uint g, out uint b, out uint a);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFText_GetStrokeColor(IntPtr textPage, int index, out uint r, out uint g, out uint b, out uint a);
+
+    // The character's text matrix combined with the page's transformation, without the font
+    // size: text set at size 1 and scaled by the matrix reports a font size of 1.
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFText_GetMatrix(IntPtr textPage, int index, out FsMatrix matrix);
+
+    [LibraryImport(library)]
+    internal static partial IntPtr FPDFText_GetTextObject(IntPtr textPage, int index);
+
+    // Text render modes (PDF 32000-1:2008, 9.3.6). Modes 4 to 7 add the text to the clipping
+    // path but otherwise draw as modes 0 to 3, so 7, like 3, draws nothing.
+    public const int TextRenderModeFill = 0;
+    public const int TextRenderModeStroke = 1;
+    public const int TextRenderModeFillStroke = 2;
+    public const int TextRenderModeInvisible = 3;
+
+    [LibraryImport(library)]
+    internal static partial int FPDFTextObj_GetTextRenderMode(IntPtr textObject);
+
+    [LibraryImport(library)]
     internal static partial int FPDFText_GetCharIndexAtPos(IntPtr textPage, double x, double y, double xTolerance, double yTolerance);
 
     [LibraryImport(library)]

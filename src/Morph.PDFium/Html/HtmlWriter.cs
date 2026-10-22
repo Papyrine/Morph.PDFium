@@ -1,0 +1,425 @@
+using System.Globalization;
+using Morph.PDFium;
+
+/// <summary>
+/// Writes pages and documents out as HTML. Pure managed work over what was read from PDFium,
+/// so it runs outside the PDFium lock. Lines end in "\n" on every platform, so the output does
+/// not depend on where it was made.
+/// </summary>
+static class HtmlWriter
+{
+    const string styles =
+        """
+        body{margin:0;background:#525659;font-family:system-ui,sans-serif}
+        .pdf-outline{box-sizing:border-box;max-width:900px;margin:16px auto 0;padding:8px 24px;background:#fff;border-radius:4px}
+        .pdf-outline ul{margin:0;padding-left:20px}
+        .pdf-outline>ul{padding-left:0;list-style:none}
+        .pdf-outline a{color:#1a5fb4;text-decoration:none}
+        .pdf-outline a:hover{text-decoration:underline}
+        .pdf-document{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px}
+        .pdf-page{box-shadow:0 1px 4px rgba(0,0,0,.5)}
+        .pdf-page ::selection{background:rgba(0,100,255,.3)}
+        .pdf-overlay ::selection{fill:transparent}
+        @page{margin:0}
+        @media print{body{background:none}.pdf-outline{display:none}.pdf-document{display:block;padding:0}.pdf-page{box-shadow:none;break-after:page}}
+        """;
+
+    // The name of the printed page a page of this size goes on: its style asks for it with
+    // the page property, and the document declares one @page rule of that size per name. In a
+    // fragment placed on its own, the name matches no rule, and the page prints on whatever
+    // sheet the browser chooses.
+    static string PageName(string width, string height) =>
+        $"pdf-{width.Replace('.', '_')}x{height.Replace('.', '_')}";
+
+    public static string Page(HtmlPageLayout layout, string? image, HtmlOptions options)
+    {
+        var builder = new StringBuilder(256 + layout.Runs.Count * 128 + (image?.Length ?? 0));
+        var width = Number(layout.Width);
+        var height = Number(layout.Height);
+        builder.Append("<div class=\"pdf-page\" id=\"");
+        AppendEscaped(builder, PageId(options.PageIdPrefix, layout.Index));
+        builder.Append($"\" style=\"position:relative;overflow:hidden;width:{width}pt;max-width:100%;aspect-ratio:{width}/{height};background:{Color(options.Render.Background)};page:{PageName(width, height)}\">\n");
+
+        if (image is not null)
+        {
+            builder.Append("<img src=\"");
+            AppendEscaped(builder, image);
+            // With text the image is decoration over which the text is read; without it the
+            // image is all there is, so it says which page it is.
+            var alt = options.Text == HtmlTextMode.None ? $"Page {layout.Index + 1}" : "";
+            builder.Append($"\" alt=\"{alt}\"");
+            // The first page is on screen as soon as the HTML opens, so only later pages wait
+            // until they are scrolled near.
+            if (options.LazyLoadImages && layout.Index > 0)
+            {
+                builder.Append(" loading=\"lazy\" decoding=\"async\"");
+            }
+
+            builder.Append(" draggable=\"false\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;user-select:none\">\n");
+        }
+
+        if (layout.Runs.Count > 0 || layout.Links.Count > 0)
+        {
+            builder.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {width} {height}\" preserveAspectRatio=\"none\" xml:space=\"preserve\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;white-space:pre\"");
+            if (options.Text == HtmlTextMode.Visible)
+            {
+                builder.Append(" fill=\"#000\">\n");
+            }
+            else
+            {
+                builder.Append(" class=\"pdf-overlay\" fill=\"transparent\" font-family=\"sans-serif\">\n");
+            }
+
+            foreach (var run in layout.Runs)
+            {
+                AppendRun(builder, run);
+            }
+
+            foreach (var link in layout.Links)
+            {
+                builder.Append("<a href=\"");
+                AppendEscaped(builder, link.Href);
+                builder.Append("\">");
+                foreach (var rectangle in link.Rectangles)
+                {
+                    builder.Append($"<rect x=\"{Number(rectangle.X)}\" y=\"{Number(rectangle.Y)}\" width=\"{Number(rectangle.Width)}\" height=\"{Number(rectangle.Height)}\" fill=\"transparent\"/>");
+                }
+
+                builder.Append("</a>\n");
+            }
+
+            builder.Append("</svg>\n");
+        }
+
+        builder.Append("</div>\n");
+        return builder.ToString();
+    }
+
+    static void AppendRun(StringBuilder builder, HtmlTextRun run)
+    {
+        var x = Number(run.X);
+        var y = Number(run.Y);
+        builder.Append($"<text x=\"{x}\" y=\"{y}\" font-size=\"{Number(run.FontSize)}\"");
+        if (run.Length > 0)
+        {
+            builder.Append($" textLength=\"{Number(run.Length)}\" lengthAdjust=\"spacingAndGlyphs\"");
+        }
+
+        var angle = Number(run.Angle);
+        if (angle != "0")
+        {
+            builder.Append($" transform=\"rotate({angle} {x} {y})\"");
+        }
+
+        var style = run.Style;
+        if (style.Generic is not null)
+        {
+            if (style.Family is null)
+            {
+                builder.Append($" font-family=\"{style.Generic}\"");
+            }
+            else
+            {
+                builder.Append($" font-family=\"'{style.Family}', {style.Generic}\"");
+            }
+
+            if (style.Weight != 400)
+            {
+                builder.Append($" font-weight=\"{style.Weight.ToString(CultureInfo.InvariantCulture)}\"");
+            }
+
+            if (style.Italic)
+            {
+                builder.Append(" font-style=\"italic\"");
+            }
+
+            if (style.Fill is { } fill)
+            {
+                if (fill.R != 0 || fill.G != 0 || fill.B != 0)
+                {
+                    builder.Append($" fill=\"#{fill.R:x2}{fill.G:x2}{fill.B:x2}\"");
+                }
+
+                if (fill.A != 255)
+                {
+                    builder.Append($" fill-opacity=\"{Number(fill.A / 255d)}\"");
+                }
+            }
+            else
+            {
+                builder.Append(" fill=\"none\"");
+            }
+
+            if (style.Stroke is { } stroke)
+            {
+                // A width of 0 is the thinnest line the device can draw: about a pixel.
+                var width = style.StrokeWidth > 0 ? style.StrokeWidth : 0.75;
+                builder.Append($" stroke=\"#{stroke.R:x2}{stroke.G:x2}{stroke.B:x2}\" stroke-width=\"{Number(width)}\"");
+                if (stroke.A != 255)
+                {
+                    builder.Append($" stroke-opacity=\"{Number(stroke.A / 255d)}\"");
+                }
+            }
+        }
+
+        builder.Append('>');
+        AppendEscaped(builder, run.Text);
+        builder.Append("</text>\n");
+    }
+
+    public const string DocumentEnd = "</main>\n</body>\n</html>\n";
+
+    // Everything before the pages: the head, the outline and the opening of the main element.
+    // DocumentEnd follows the pages.
+    public static void DocumentStart(TextWriter writer, string title, string? language, Dictionary<string, string>? properties, IReadOnlyList<PdfBookmark> outline, IReadOnlyList<PageSize> sizes, HtmlOptions options)
+    {
+        var builder = new StringBuilder("<!DOCTYPE html>\n<html");
+        if (language is not null && IsLanguageTag(language))
+        {
+            builder.Append($" lang=\"{language}\"");
+        }
+
+        builder.Append(">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<meta name=\"generator\" content=\"Morph.PDFium\">\n");
+        AppendMeta(builder, "author", properties, "Author");
+        AppendMeta(builder, "description", properties, "Subject");
+        AppendMeta(builder, "keywords", properties, "Keywords");
+        builder.Append("<title>");
+        AppendEscaped(builder, title);
+        builder.Append($"</title>\n<style>\n{styles}\n");
+        // One printed page size per page size in the document, so each page prints on a sheet
+        // its own size rather than the browser's default paper, which would shrink it or run
+        // it onto a second sheet.
+        var names = new HashSet<string>();
+        foreach (var size in sizes)
+        {
+            var width = Number(size.Width);
+            var height = Number(size.Height);
+            var name = PageName(width, height);
+            if (names.Add(name))
+            {
+                builder.Append($"@page {name}{{size:{width}pt {height}pt}}\n");
+            }
+        }
+
+        builder.Append("</style>\n</head>\n<body>\n");
+
+        if (outline.Count > 0)
+        {
+            builder.Append("<nav class=\"pdf-outline\" aria-label=\"Outline\">\n");
+            AppendOutline(builder, outline, options.PageIdPrefix);
+            builder.Append("</nav>\n");
+        }
+
+        builder.Append("<main class=\"pdf-document\">\n");
+        writer.Write(builder);
+    }
+
+    static void AppendMeta(StringBuilder builder, string name, Dictionary<string, string>? properties, string property)
+    {
+        if (properties is null || !properties.TryGetValue(property, out var value))
+        {
+            return;
+        }
+
+        builder.Append($"<meta name=\"{name}\" content=\"");
+        AppendEscaped(builder, value);
+        builder.Append("\">\n");
+    }
+
+    static void AppendOutline(StringBuilder builder, IReadOnlyList<PdfBookmark> bookmarks, string pageIdPrefix)
+    {
+        builder.Append("<ul>\n");
+        foreach (var bookmark in bookmarks)
+        {
+            builder.Append("<li>");
+            var href = Href(bookmark.Destination, bookmark.Action, pageIdPrefix);
+            if (href is null)
+            {
+                builder.Append("<span>");
+                AppendEscaped(builder, bookmark.Title);
+                builder.Append("</span>");
+            }
+            else
+            {
+                builder.Append("<a href=\"");
+                AppendEscaped(builder, href);
+                builder.Append("\">");
+                AppendEscaped(builder, bookmark.Title);
+                builder.Append("</a>");
+            }
+
+            if (bookmark.Children.Count > 0)
+            {
+                builder.Append('\n');
+                AppendOutline(builder, bookmark.Children, pageIdPrefix);
+            }
+
+            builder.Append("</li>\n");
+        }
+
+        builder.Append("</ul>\n");
+    }
+
+    static string PageId(string prefix, int index) =>
+        prefix + (index + 1).ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Where a link or bookmark should point: a page of this document by its id, a URL, or a
+    /// file beside this one. Null for a target HTML cannot reach, or should not: a launch, a
+    /// file embedded in the PDF, or a URL of a scheme that is not on the safe list.
+    /// </summary>
+    public static string? Href(PdfDestination? destination, PdfAction? action, string pageIdPrefix)
+    {
+        if (destination is { PageIndex: >= 0 } local)
+        {
+            return "#" + PageId(pageIdPrefix, local.PageIndex);
+        }
+
+        if (action is not { } target)
+        {
+            return null;
+        }
+
+        return target.Type switch
+        {
+            PdfActionType.Uri => SafeUrl(target.Uri),
+            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => "#" + PageId(pageIdPrefix, goTo.PageIndex),
+            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath),
+            _ => null
+        };
+    }
+
+    static readonly string[] safeSchemes = ["http", "https", "mailto", "ftp", "tel"];
+
+    /// <summary>
+    /// The URL with control characters and surrounding white space removed, or null when it is
+    /// empty or has a scheme other than http, https, mailto, ftp and tel. A URL with no scheme
+    /// is a relative reference, and kept.
+    /// </summary>
+    public static string? SafeUrl(string? url)
+    {
+        if (url is null)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder(url.Length);
+        foreach (var character in url)
+        {
+            if (!char.IsControl(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        var cleaned = builder.ToString().Trim();
+        if (cleaned.Length == 0)
+        {
+            return null;
+        }
+
+        // A scheme is whatever comes before the first colon, provided that colon comes before
+        // any path, query or fragment. Anything that is not a valid scheme name there, such as
+        // the drive of "C:\file.pdf", is rejected along with the unsafe schemes.
+        var colon = cleaned.IndexOf(':');
+        var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
+        if (colon < 0 || (delimiter >= 0 && delimiter < colon))
+        {
+            return cleaned;
+        }
+
+        var scheme = cleaned[..colon];
+        foreach (var safe in safeSchemes)
+        {
+            if (string.Equals(scheme, safe, StringComparison.OrdinalIgnoreCase))
+            {
+                return cleaned;
+            }
+        }
+
+        return null;
+    }
+
+    static bool IsLanguageTag(string value)
+    {
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(character) && character != '-')
+            {
+                return false;
+            }
+        }
+
+        return value.Length > 0;
+    }
+
+    // Escapes text for either element content or a double quoted attribute. Characters HTML
+    // does not allow (control characters, and unpaired surrogates, which no encoding can
+    // write) are replaced or dropped rather than producing a malformed document.
+    static void AppendEscaped(StringBuilder builder, string value)
+    {
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            switch (character)
+            {
+                case '&':
+                    builder.Append("&amp;");
+                    break;
+                case '<':
+                    builder.Append("&lt;");
+                    break;
+                case '>':
+                    builder.Append("&gt;");
+                    break;
+                case '"':
+                    builder.Append("&quot;");
+                    break;
+                case '\t' or '\n':
+                    builder.Append(character);
+                    break;
+                case < ' ' or '\u007F':
+                    break;
+                default:
+                    if (char.IsHighSurrogate(character) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))
+                    {
+                        builder.Append(character).Append(value[index + 1]);
+                        index++;
+                    }
+                    else if (char.IsSurrogate(character))
+                    {
+                        builder.Append('\uFFFD');
+                    }
+                    else
+                    {
+                        builder.Append(character);
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    static string Color(PdfColor color)
+    {
+        if (color.A == 255)
+        {
+            return $"#{color.R:x2}{color.G:x2}{color.B:x2}";
+        }
+
+        return $"rgba({color.R},{color.G},{color.B},{Number(color.A / 255d)})";
+    }
+
+    // Two decimals of a point is well below a pixel at any sensible zoom.
+    static string Number(double value)
+    {
+        var rounded = Math.Round(value, 2);
+        // Also turns -0, which would print as "-0", into 0.
+        if (rounded == 0)
+        {
+            return "0";
+        }
+
+        return rounded.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+}
