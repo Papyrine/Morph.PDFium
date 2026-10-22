@@ -226,7 +226,7 @@ static class HtmlWriter
         if (outline.Count > 0)
         {
             builder.Append("<nav class=\"pdf-outline\" aria-label=\"Outline\">\n");
-            AppendOutline(builder, outline, options.PageIdPrefix);
+            AppendOutline(builder, outline, options);
             builder.Append("</nav>\n");
         }
 
@@ -246,13 +246,13 @@ static class HtmlWriter
         builder.Append("\">\n");
     }
 
-    static void AppendOutline(StringBuilder builder, IReadOnlyList<PdfBookmark> bookmarks, string pageIdPrefix)
+    static void AppendOutline(StringBuilder builder, IReadOnlyList<PdfBookmark> bookmarks, HtmlOptions options)
     {
         builder.Append("<ul>\n");
         foreach (var bookmark in bookmarks)
         {
             builder.Append("<li>");
-            var href = Href(bookmark.Destination, bookmark.Action, pageIdPrefix);
+            var href = Href(bookmark.Destination, bookmark.Action, options);
             if (href is null)
             {
                 builder.Append("<span>");
@@ -271,7 +271,7 @@ static class HtmlWriter
             if (bookmark.Children.Count > 0)
             {
                 builder.Append('\n');
-                AppendOutline(builder, bookmark.Children, pageIdPrefix);
+                AppendOutline(builder, bookmark.Children, options);
             }
 
             builder.Append("</li>\n");
@@ -286,13 +286,13 @@ static class HtmlWriter
     /// <summary>
     /// Where a link or bookmark should point: a page of this document by its id, a URL, or a
     /// file beside this one. Null for a target HTML cannot reach, or should not: a launch, a
-    /// file embedded in the PDF, or a URL of a scheme that is not on the safe list.
+    /// file embedded in the PDF, or a URL that <see cref="SafeUrl"/> rejects.
     /// </summary>
-    public static string? Href(PdfDestination? destination, PdfAction? action, string pageIdPrefix)
+    public static string? Href(PdfDestination? destination, PdfAction? action, HtmlOptions options)
     {
         if (destination is { PageIndex: >= 0 } local)
         {
-            return "#" + PageId(pageIdPrefix, local.PageIndex);
+            return "#" + PageId(options.PageIdPrefix, local.PageIndex);
         }
 
         if (action is not { } target)
@@ -302,21 +302,19 @@ static class HtmlWriter
 
         return target.Type switch
         {
-            PdfActionType.Uri => SafeUrl(target.Uri),
-            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => "#" + PageId(pageIdPrefix, goTo.PageIndex),
-            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath),
+            PdfActionType.Uri => SafeUrl(target.Uri, options),
+            PdfActionType.GoTo when target.Destination is { PageIndex: >= 0 } goTo => "#" + PageId(options.PageIdPrefix, goTo.PageIndex),
+            PdfActionType.RemoteGoTo => SafeUrl(target.FilePath, options),
             _ => null
         };
     }
 
-    static readonly string[] safeSchemes = ["http", "https", "mailto", "ftp", "tel"];
-
     /// <summary>
     /// The URL with control characters and surrounding white space removed, or null when it is
-    /// empty or has a scheme other than http, https, mailto, ftp and tel. A URL with no scheme
-    /// is a relative reference, and kept.
+    /// empty or has a scheme not in <see cref="HtmlOptions.AllowedLinkSchemes"/>. A URL with no
+    /// scheme is a relative reference, kept only with <see cref="HtmlOptions.AllowRelativeLinks"/>.
     /// </summary>
-    public static string? SafeUrl(string? url)
+    public static string? SafeUrl(string? url, HtmlOptions options)
     {
         if (url is null)
         {
@@ -345,13 +343,18 @@ static class HtmlWriter
         var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
         if (colon < 0 || (delimiter >= 0 && delimiter < colon))
         {
-            return cleaned;
+            if (options.AllowRelativeLinks)
+            {
+                return cleaned;
+            }
+
+            return null;
         }
 
-        var scheme = cleaned[..colon];
-        foreach (var safe in safeSchemes)
+        var scheme = cleaned.AsSpan(0, colon);
+        foreach (var allowed in options.AllowedLinkSchemes)
         {
-            if (string.Equals(scheme, safe, StringComparison.OrdinalIgnoreCase))
+            if (scheme.Equals(allowed, StringComparison.OrdinalIgnoreCase))
             {
                 return cleaned;
             }

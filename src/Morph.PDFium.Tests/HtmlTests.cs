@@ -576,6 +576,54 @@ public class HtmlTests
     }
 
     [Test]
+    public async Task AllowedLinkSchemes()
+    {
+        using var document = PdfiumDocument.Load(PdfWithLinks());
+        var html = document.RenderPageHtml(
+            0,
+            textOnly with
+            {
+                AllowedLinkSchemes = ["HTTPS"],
+                AllowRelativeLinks = false
+            });
+        // The links to the second page and to https URLs, but not to the other file.
+        await Assert.That(html).Contains("<a href=\"#page-2\"><rect x=\"72\" y=\"172\"");
+        await Assert.That(html).Contains("<a href=\"#page-2\"><rect x=\"72\" y=\"202\"");
+        await Assert.That(html).Contains("<a href=\"https://example.com/a?b=c&amp;d=&quot;e&quot;\">");
+        await Assert.That(html).Contains("<a href=\"https://example.com/text\">");
+        await Assert.That(html).DoesNotContain("remote.pdf");
+        await Assert.That(html.Split("<a ").Length - 1).IsEqualTo(4);
+
+        // With no schemes at all, only the links within the document are left.
+        var withinDocument = document.RenderHtml(
+            textOnly with
+            {
+                AllowedLinkSchemes = [],
+                AllowRelativeLinks = false
+            });
+        await Assert.That(withinDocument).DoesNotContain("example.com/a");
+        await Assert.That(withinDocument).DoesNotContain("href=\"https://example.com/text\"");
+        await Assert.That(withinDocument).DoesNotContain("remote.pdf");
+        await Assert.That(withinDocument).Contains("<li><a href=\"#page-2\">Second</a></li>");
+        await Assert.That(withinDocument.Split("<a href=\"#page-2\"><rect").Length - 1).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task RelativeLinksWithoutSchemes()
+    {
+        using var document = PdfiumDocument.Load(PdfWithLinks());
+        // Relative references are kept apart from the schemes.
+        var html = document.RenderPageHtml(
+            0,
+            textOnly with
+            {
+                AllowedLinkSchemes = []
+            });
+        await Assert.That(html).Contains("<a href=\"remote.pdf\">");
+        await Assert.That(html).DoesNotContain("href=\"https:");
+    }
+
+    [Test]
     public async Task NoLinks()
     {
         using var document = PdfiumDocument.Load(PdfWithLinks());
@@ -951,6 +999,8 @@ public class HtmlTests
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = null! })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { PageIdPrefix = null! })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Text = (HtmlTextMode) 9 })).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderPageHtml(0, new() { AllowedLinkSchemes = null! })).Throws<ArgumentException>();
+        await Assert.That(() => document.RenderPageHtml(0, new() { AllowedLinkSchemes = ["https", ""] })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = new() { Dpi = 0 } })).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPageHtml(1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderHtml((TextWriter) null!)).Throws<ArgumentNullException>();

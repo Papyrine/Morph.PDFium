@@ -26,11 +26,32 @@ public sealed record HtmlOptions
     /// <summary>
     /// Whether link annotations, and the URLs PDFium detects in the page text, become
     /// clickable areas. A link to a page of the same document points at that page's id (see
-    /// <see cref="PageIdPrefix"/>). Only http, https, mailto, ftp and tel links and relative
+    /// <see cref="PageIdPrefix"/>). Only links of the schemes in
+    /// <see cref="AllowedLinkSchemes"/> and, with <see cref="AllowRelativeLinks"/>, relative
     /// references are kept: a javascript: link, a launch action or a link into an embedded
     /// file is left out.
     /// </summary>
     public bool IncludeLinks { get; init; } = true;
+
+    /// <summary>
+    /// The URL schemes, such as "https", that a link, or a bookmark in the outline, may have
+    /// to be kept, compared ignoring case; a link of any other scheme is left out. Defaults to
+    /// http, https, mailto, ftp and tel. For a PDF from an untrusted source, narrow it to, say,
+    /// http, https and mailto, and turn off <see cref="AllowRelativeLinks"/>. Never add a
+    /// scheme that runs script, such as javascript. A link to a page of the same document is
+    /// kept whatever this holds.
+    /// </summary>
+    public IReadOnlyCollection<string> AllowedLinkSchemes { get; init; } = DefaultLinkSchemes;
+
+    /// <summary>
+    /// Whether a link, or a bookmark, that is a relative reference, with no scheme, is kept:
+    /// a link to a file beside the PDF, say, which the HTML then resolves against its own
+    /// location. On by default. A link to a page of the same document is kept either way.
+    /// </summary>
+    public bool AllowRelativeLinks { get; init; } = true;
+
+    /// <summary>The default <see cref="AllowedLinkSchemes"/>: http, https, mailto, ftp and tel.</summary>
+    public static IReadOnlyCollection<string> DefaultLinkSchemes { get; } = ["http", "https", "mailto", "ftp", "tel"];
 
     /// <summary>
     /// Whether a whole document's HTML starts with its outline (bookmarks) as a nested list
@@ -78,6 +99,19 @@ public sealed record HtmlOptions
         if (PageIdPrefix is null)
         {
             throw new ArgumentException("PageIdPrefix must not be null", paramName);
+        }
+
+        if (AllowedLinkSchemes is null)
+        {
+            throw new ArgumentException("AllowedLinkSchemes must not be null", paramName);
+        }
+
+        foreach (var scheme in AllowedLinkSchemes)
+        {
+            if (string.IsNullOrEmpty(scheme))
+            {
+                throw new ArgumentException("AllowedLinkSchemes must not hold a null or empty scheme", paramName);
+            }
         }
 
         if (!Enum.IsDefined(Text))
