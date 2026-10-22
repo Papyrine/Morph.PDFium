@@ -1,8 +1,8 @@
 /// <summary>
-/// The readme promises byte-identical PNGs on every machine and OS. The snapshot tests compare
-/// PNGs by SSIM, which would pass a render a few pixels off, so these render the same pages
-/// again and compare them byte for byte with the committed snapshots. CI runs them on Windows,
-/// Linux and macOS (arm64).
+/// The readme promises the same pixels on every machine and OS for a document whose fonts are
+/// embedded. The snapshot tests compare PNGs by SSIM, which would pass a render a few pixels
+/// off, so these render the same pages again and compare them byte for byte with the committed
+/// snapshots. CI runs them on Windows, Linux and macOS (arm64).
 /// </summary>
 public class DeterminismTests
 {

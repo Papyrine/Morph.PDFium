@@ -350,8 +350,9 @@ static class HtmlWriter
     /// and an absolute "/volume/path" becomes "\\volume\path" or "c:\path"; on macOS "/" becomes
     /// ":"; elsewhere it is left as the PDF wrote it. So the separators are turned back into "/",
     /// making the HTML the same whichever OS wrote it, and an absolute path, which names a
-    /// volume, a drive or a host rather than a file beside the PDF, is never a link. A URL
-    /// specification (/FS /URL) is not decoded, so is left to <see cref="SafeUrl"/>.
+    /// volume, a drive or a host rather than a file beside the PDF, is never a link. A URL, which
+    /// a /FS /URL specification gives as written, is told by its "://" and left to
+    /// <see cref="SafeUrl"/>.
     /// </summary>
     static string? RemoteFileUrl(string? path, HtmlOptions options)
     {
