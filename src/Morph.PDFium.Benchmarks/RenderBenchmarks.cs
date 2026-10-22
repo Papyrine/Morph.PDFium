@@ -77,4 +77,18 @@ public class RenderBenchmarks
 
         return total;
     }
+
+    // The same conversion through ProcessPages. PDFium's work still serialises on the lock, but
+    // each page's PNG encoding then overlaps the others' rendering and text extraction.
+    [Benchmark]
+    public long TextThenRenderProcessPages()
+    {
+        long total = 0;
+        foreach (var (text, png) in document.ProcessPages(_ => (_.GetText()?.Length ?? 0, _.Render(Dpi).Length)))
+        {
+            total += text + png;
+        }
+
+        return total;
+    }
 }
