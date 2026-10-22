@@ -68,6 +68,13 @@ jobs:
       - name: Test
         run: dotnet run --project src/Morph.PDFium.Tests --configuration Release --no-build -- --report-trx
 
+      # The PNG encoder's 128-bit vector path, which ARM and machines without AVX2 run, and
+      # which the AVX2 runner otherwise never reaches.
+      - name: Test without AVX2
+        env:
+          DOTNET_EnableAVX2: 0
+        run: dotnet run --project src/Morph.PDFium.Tests --configuration Release --no-build
+
       - name: Upload received on failure
         if: failure()
         uses: actions/upload-artifact@v7

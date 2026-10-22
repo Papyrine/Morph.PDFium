@@ -41,8 +41,15 @@ public class Samples
 
         using var document = PdfiumDocument.Load("multi-page.pdf");
         Console.WriteLine(document.PageCount);
-        Console.WriteLine(document.GetPageSizes());
-        Console.WriteLine(document.GetProperties());
+        foreach (var size in document.GetPageSizes())
+        {
+            Console.WriteLine($"{size.Width} x {size.Height}");
+        }
+
+        foreach (var (name, value) in document.GetProperties() ?? [])
+        {
+            Console.WriteLine($"{name}: {value}");
+        }
 
         #endregion
 
