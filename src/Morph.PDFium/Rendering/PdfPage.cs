@@ -11,16 +11,16 @@ public sealed partial class PdfPage
     {
         RenderOptions.ValidateDpi(dpi, nameof(dpi));
         using var rendered = RenderPixels(dpi, PdfiumNative.RenderAnnotations, PdfiumDocument.OpaqueWhite, null);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi, RenderOptions.DefaultCompressionLevel);
     }
 
     /// <summary>Renders this page to a PNG using the supplied <paramref name="options"/>.</summary>
     public byte[] Render(RenderOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
+        options.Validate(nameof(options));
         using var rendered = RenderPixels(options.Dpi, options.ToFlags(), options.ToFillColor(), null);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, options.CompressionLevel);
     }
 
     /// <summary>
@@ -30,10 +30,10 @@ public sealed partial class PdfPage
     public byte[] RenderRegion(PdfRectangle clip, RenderOptions? options = null)
     {
         options ??= new();
-        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
+        options.Validate(nameof(options));
         PdfiumDocument.ValidateClip(clip);
         using var rendered = RenderPixels(options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, options.CompressionLevel);
     }
 
     // The counterpart of PdfiumDocument.RenderPixels for a page that is already loaded.

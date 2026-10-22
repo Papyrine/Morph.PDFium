@@ -96,6 +96,29 @@ var png = document.RenderPage(
 <!-- endSnippet -->
 
 
+### PNG compression level
+
+Pages are deflated at zlib level 6 by default (what `CompressionLevel.Optimal` gives). Lower levels encode faster for a somewhat larger file: on text pages level 4 is about 20% faster for files about 3% larger. Set it per render, or globally for the renders that take no options.
+
+<!-- snippet: CompressionLevel -->
+<a id='snippet-CompressionLevel'></a>
+```cs
+using var document = PdfiumDocument.Load("sample.pdf");
+// For one render: zlib level 0 (stored) to 9 (smallest); 6 is the default
+var png = document.RenderPage(
+    0,
+    new RenderOptions
+    {
+        CompressionLevel = 4
+    });
+
+// For every render not given a level of its own
+RenderOptions.DefaultCompressionLevel = 4;
+```
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-CompressionLevel' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
 ### Render a region (clip / tile)
 
 Render a single rectangle of a page (in page points, origin bottom-left), scaled to the dpi.
@@ -114,7 +137,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L180-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L211-L224' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -131,7 +154,7 @@ var text = page.GetText();
 // Renders the page that is already loaded, rather than parsing it again
 var png = page.Render(dpi: 96);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L163-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderOpenPage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L194-L202' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderOpenPage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -227,7 +250,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L201-L213' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L232-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -247,7 +270,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L222-L233' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L253-L264' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -260,7 +283,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L241-L247' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L272-L278' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

@@ -14,7 +14,8 @@ static class PngEncoder
     // How many rows the filter trial compresses.
     const int sampleRows = 64;
 
-    public static byte[] Encode(ReadOnlySpan<byte> rgba, int width, int height, double dpi)
+    // compressionLevel is a zlib level, 0 to 9, validated by RenderOptions.
+    public static byte[] Encode(ReadOnlySpan<byte> rgba, int width, int height, double dpi, int compressionLevel)
     {
         // Most pages are dark text on a white background, which anti-aliases to shades of
         // gray. Such a page loses nothing as a one byte per pixel grayscale image, and it
@@ -27,7 +28,7 @@ static class PngEncoder
         output.Write(signature);
         WriteChunk(output, "IHDR"u8, BuildHeader(width, height, gray));
         WriteChunk(output, "pHYs"u8, BuildPhysicalDimensions(dpi));
-        WriteImageData(output, rgba, width, height, gray, filter);
+        WriteImageData(output, rgba, width, height, gray, filter, compressionLevel);
         WriteChunk(output, "IEND"u8, []);
         return output.ToArray();
     }
@@ -97,13 +98,13 @@ static class PngEncoder
     // Writes the IDAT chunk. The compressed data goes straight into the output, and the chunk
     // length and CRC, which are only known once it is all written, are filled in afterwards.
     // That avoids compressing into a buffer of its own and copying the result across.
-    static void WriteImageData(PooledBuffer output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter)
+    static void WriteImageData(PooledBuffer output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter, int compressionLevel)
     {
         var start = (int) output.Length;
         Span<byte> word = stackalloc byte[4];
         output.Write(word); // length, patched below
         output.Write("IDAT"u8);
-        Compress(output, rgba, width, height, gray, filter);
+        Compress(output, rgba, width, height, gray, filter, compressionLevel);
 
         var chunk = output.Written[start..];
         BinaryPrimitives.WriteInt32BigEndian(chunk, chunk.Length - 8);
@@ -113,10 +114,14 @@ static class PngEncoder
         output.Write(word);
     }
 
-    static void Compress(Stream output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter)
+    static void Compress(Stream output, ReadOnlySpan<byte> rgba, int width, int height, bool gray, byte filter, int compressionLevel)
     {
         var stride = ScanlineLength(width, gray);
-        using var zlib = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true);
+        var options = new ZLibCompressionOptions
+        {
+            CompressionLevel = compressionLevel
+        };
+        using var zlib = new ZLibStream(output, options, leaveOpen: true);
         // Each scanline goes to zlib in one write: its filter type byte, then the filtered row.
         var filtered = new byte[stride + 1];
         filtered[0] = filter;

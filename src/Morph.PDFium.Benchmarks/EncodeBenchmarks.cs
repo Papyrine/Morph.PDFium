@@ -1,4 +1,5 @@
 // PNG encoding of every page, rasterised once up front so PDFium is out of the measurement.
+// Level 6 is the default; 4 is the faster setting the documentation suggests.
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 2, iterationCount: 8)]
 public class EncodeBenchmarks
@@ -7,6 +8,9 @@ public class EncodeBenchmarks
 
     [Params(96, 200)]
     public double Dpi { get; set; }
+
+    [Params(6, 4)]
+    public int Level { get; set; }
 
     [GlobalSetup]
     public void Setup()
@@ -26,7 +30,7 @@ public class EncodeBenchmarks
         long total = 0;
         foreach (var (pixels, width, height) in pages)
         {
-            total += PngEncoder.Encode(pixels, width, height, Dpi).Length;
+            total += PngEncoder.Encode(pixels, width, height, Dpi, Level).Length;
         }
 
         return total;

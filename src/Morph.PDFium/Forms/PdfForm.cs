@@ -144,7 +144,7 @@ public sealed class PdfForm :
     public byte[] RenderPage(int index, RenderOptions? options = null)
     {
         options ??= new();
-        RenderOptions.ValidateDpi(options.Dpi, nameof(options));
+        options.Validate(nameof(options));
 
         RenderedPixels rendered;
         // Held across the render so the form cannot be disposed between the check and its use.
@@ -159,7 +159,7 @@ public sealed class PdfForm :
 
         using (rendered)
         {
-            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi);
+            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, options.CompressionLevel);
         }
     }
 
