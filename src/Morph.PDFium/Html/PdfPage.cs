@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Morph.PDFium;
 
 public sealed partial class PdfPage
@@ -84,15 +86,16 @@ public sealed partial class PdfPage
 
     // Caller must hold PdfiumNative.Sync. Works out the map from page coordinates to display
     // coordinates by asking FPDF_PageToDevice where three points land, which accounts for the
-    // page's rotation and for a media or crop box away from the origin. Any three points not in
-    // a line do, so fixed ones are used rather than the page box, which a malformed page (a
-    // crop box outside its media box) can leave empty.
+    // page's rotation and for a media or crop box away from the origin. Three corners of the
+    // page box are used, which land within the device whatever the box's offset; a malformed
+    // page (a crop box outside its media box) can leave the box empty, and then any three
+    // points not in a line do.
     DisplayMatrix ReadDisplayMatrix(IntPtr page, double width, double height)
     {
-        // FPDF_PageToDevice answers in whole device units, so ask about a device this many
-        // times the page's size in points to keep precision below a point.
-        const int unitsPerPoint = 1000;
-        const double span = 1000;
+        // FPDF_PageToDevice answers in whole device units, so ask about a device many times the
+        // page's size in points to keep precision below a point: a thousand times, or as many
+        // as fit in its int coordinates for a page far larger than any paper.
+        var unitsPerPoint = (int) Math.Clamp(int.MaxValue / 4d / Math.Max(1, Math.Max(width, height)), 1, 1000);
         var deviceWidth = (int) Math.Round(width * unitsPerPoint);
         var deviceHeight = (int) Math.Round(height * unitsPerPoint);
         (double X, double Y) ToDisplay(double x, double y)
@@ -105,15 +108,23 @@ public sealed partial class PdfPage
             return ((double) deviceX / unitsPerPoint, (double) deviceY / unitsPerPoint);
         }
 
-        var origin = ToDisplay(0, 0);
-        var right = ToDisplay(span, 0);
-        var top = ToDisplay(0, span);
+        var (left, bottom, spanX, spanY) = (0d, 0d, 1000d, 1000d);
+        if (PdfiumNative.FPDF_GetPageBoundingBox(page, out var box) &&
+            box.Right > box.Left &&
+            box.Top > box.Bottom)
+        {
+            (left, bottom, spanX, spanY) = (box.Left, box.Bottom, (double) box.Right - box.Left, (double) box.Top - box.Bottom);
+        }
+
+        var origin = ToDisplay(left, bottom);
+        var right = ToDisplay(left + spanX, bottom);
+        var top = ToDisplay(left, bottom + spanY);
         // A quarter turn's coefficients are exactly 0 or ±1; snap off the device rounding.
-        var a = Snap((right.X - origin.X) / span);
-        var b = Snap((right.Y - origin.Y) / span);
-        var c = Snap((top.X - origin.X) / span);
-        var d = Snap((top.Y - origin.Y) / span);
-        return new(a, b, c, d, origin.X, origin.Y);
+        var a = Snap((right.X - origin.X) / spanX);
+        var b = Snap((right.Y - origin.Y) / spanX);
+        var c = Snap((top.X - origin.X) / spanY);
+        var d = Snap((top.Y - origin.Y) / spanY);
+        return new(a, b, c, d, origin.X - a * left - c * bottom, origin.Y - b * left - d * bottom);
     }
 
     static double Snap(double value)
@@ -236,7 +247,10 @@ public sealed partial class PdfPage
                 fontSize = Math.Max(1, box.Height);
             }
 
-            builder.Add((int) unicode, x, y, Advance(box, a, b, c, d, fontSize), fontSize, a / length, b / length, style);
+            // A combining mark or a zero-width character takes no room of its own. PDFium's loose
+            // box cannot say so: for a glyph with no advance it falls back to the inked part.
+            var advance = TakesNoAdvance((int) unicode) ? 0 : Advance(box, a, b, c, d, fontSize);
+            builder.Add((int) unicode, x, y, advance, fontSize, a / length, b / length, style);
             highSurrogateAdded = unicode is >= 0xD800 and <= 0xDBFF;
         }
 
@@ -244,15 +258,23 @@ public sealed partial class PdfPage
         return builder.Runs;
     }
 
+    // Combining marks (an accent over the letter before it, a Thai or Indic vowel sign) and
+    // zero-width format characters (ZWSP, ZWJ). A first surrogate half, standing for a code
+    // point it cannot classify alone, is taken to advance.
+    static bool TakesNoAdvance(int codePoint) =>
+        codePoint is < 0xD800 or > 0xDFFF &&
+        CharUnicodeInfo.GetUnicodeCategory(codePoint) is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format;
+
     // The character's advance along its baseline, in page points, from its loose box. That box
     // is the upright rectangle around the character's text space box (its advance w across,
     // the font's ascent to descent h up) mapped by its matrix (a b c d), so it is |a|w + |c|h
     // wide and |b|w + |d|h high. Solving those for w and scaling it by the length of the
     // matrix's x axis gives the advance. Where the two cannot be told apart, for text turned
-    // near 45 degrees, or there is no box, half an em is assumed.
+    // near 45 degrees, or there is no box, half an em is assumed. A box with no width but some
+    // height is a mark with no advance of its own, such as a combining accent.
     static double Advance(PdfRectangle box, double a, double b, double c, double d, double fontSize)
     {
-        if (box.Width <= 0 || box.Height <= 0)
+        if (box.Width <= 0 && box.Height <= 0)
         {
             return fontSize * 0.5;
         }
@@ -267,7 +289,9 @@ public sealed partial class PdfPage
         }
 
         var width = (box.Width * absD - box.Height * absC) / determinant;
-        return Math.Clamp(width * xAxis, 0, fontSize * 2);
+        // However the box is turned, no side of it is longer than its width and height
+        // together, which bounds a solution thrown off by rounding.
+        return Math.Clamp(width * xAxis, 0, box.Width + box.Height);
     }
 
     // Caller must hold PdfiumNative.Sync. The look of the character at index, or null when its
@@ -346,7 +370,7 @@ public sealed partial class PdfPage
     List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, HtmlOptions options)
     {
         var links = new List<HtmlLink>();
-        var hrefs = new HashSet<string>();
+        var annotated = new List<(string Href, PdfRectangle Rectangle)>();
         foreach (var link in GetLinks())
         {
             var href = HtmlWriter.Href(link.Destination, link.Action, options);
@@ -355,15 +379,17 @@ public sealed partial class PdfPage
                 continue;
             }
 
-            hrefs.Add(href);
+            annotated.Add((href, link.Rectangle));
             links.Add(new(href, [matrix.Map(link.Rectangle)]));
         }
 
         // PDFium finds URLs in the text whether or not a link annotation already covers them.
+        // One is left out only where an annotation to the same URL lies over it; the same URL
+        // linked elsewhere on the page, in a footer say, leaves the text's link in place.
         foreach (var webLink in GetWebLinks())
         {
             var href = HtmlWriter.SafeUrl(webLink.Url, options);
-            if (href is null || !hrefs.Add(href))
+            if (href is null || IsAnnotated(href, webLink.Rectangles, annotated))
             {
                 continue;
             }
@@ -372,5 +398,29 @@ public sealed partial class PdfPage
         }
 
         return links;
+    }
+
+    static bool IsAnnotated(string href, IReadOnlyList<PdfRectangle> rectangles, List<(string Href, PdfRectangle Rectangle)> annotated)
+    {
+        foreach (var (annotatedHref, annotation) in annotated)
+        {
+            if (annotatedHref != href)
+            {
+                continue;
+            }
+
+            foreach (var rectangle in rectangles)
+            {
+                if (rectangle.Left < annotation.Right &&
+                    annotation.Left < rectangle.Right &&
+                    rectangle.Bottom < annotation.Top &&
+                    annotation.Bottom < rectangle.Top)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

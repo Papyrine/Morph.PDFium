@@ -769,6 +769,47 @@ public class HtmlTests
         }
     }
 
+    // A link may name any two opposite corners of its rectangle, so these are reversed.
+    [Test]
+    public async Task LinkWithReversedRectangle()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R] >>",
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [300 720 72 690] /A << /S /URI /URI (https://example.com/reversed) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        using var page = document.LoadPage(0);
+        await Assert.That(page.GetLinks()[0].Rectangle).IsEqualTo(new PdfRectangle(72, 690, 300, 720));
+        var html = page.RenderHtml(textOnly);
+        await Assert.That(html).Contains("<a href=\"https://example.com/reversed\"><rect x=\"72\" y=\"72\" width=\"228\" height=\"30\" fill=\"transparent\"/></a>");
+    }
+
+    // A URL written in the text keeps its link when a link annotation elsewhere on the page,
+    // in a footer say, leads to the same URL; only one over the URL itself makes it redundant.
+    [Test]
+    public async Task WebLinkKeptBesideAnnotationToTheSameUrl()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [10 0 R 11 0 R] >>",
+            [4] = CraftedPdf.Stream("BT /F1 12 Tf 72 700 Td (See https://example.com/x for more) Tj ET BT /F1 12 Tf 72 400 Td (Also https://example.com/y here) Tj ET"),
+            [5] = CraftedPdf.Helvetica,
+            // In a footer, far from the first URL's text.
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [72 40 300 60] /A << /S /URI /URI (https://example.com/x) >> >>",
+            // Over the second URL's text.
+            [11] = "<< /Type /Annot /Subtype /Link /Rect [90 395 230 412] /A << /S /URI /URI (https://example.com/y) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html.Split("<a href=\"https://example.com/x\">").Length - 1).IsEqualTo(2);
+        await Assert.That(html.Split("<a href=\"https://example.com/y\">").Length - 1).IsEqualTo(1);
+    }
+
     [Test]
     public async Task NoLinks()
     {
@@ -1097,6 +1138,77 @@ public class HtmlTests
                 ImageUrl = (_, _) => "page.png"
             });
         await Assert.That(overlay).Contains("\U0001F600");
+    }
+
+    // A font whose ToUnicode map reads "b" as a combining acute accent with no advance of its
+    // own, "c" as a C1 control and "d" as a noncharacter.
+    static byte[] MarksPdf(string content) =>
+        CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream(content),
+            [5] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /FirstChar 97 /LastChar 100 /Widths [556 0 556 556] /ToUnicode 6 0 R >>",
+            [6] = CraftedPdf.Stream(
+                """
+                /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+                /CMapName /Marks def /CMapType 2 def
+                1 begincodespacerange <00> <FF> endcodespacerange
+                4 beginbfchar <61> <0061> <62> <0301> <63> <0095> <64> <FFFE> endbfchar
+                endcmap CMapName currentdict /CMap defineresource pop end end
+                """)
+        });
+
+    // A mark with no advance takes up no length: the run is as long as its "a", not half an em
+    // longer, which would stretch the "a" to fill it.
+    [Test]
+    public async Task ZeroAdvanceMarkAddsNoLength()
+    {
+        using var document = PdfiumDocument.Load(MarksPdf("BT /F1 20 Tf 72 700 Td (ab) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("textLength=\"11.12\"");
+        await Assert.That(html).Contains(">á</text>");
+    }
+
+    // Control characters beyond ASCII (C1) and noncharacters are not allowed in HTML.
+    [Test]
+    public async Task ControlCharactersLeftOut()
+    {
+        using var document = PdfiumDocument.Load(MarksPdf("BT /F1 20 Tf 72 700 Td (acda) Tj ET"));
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains(">aa</text>");
+        await Assert.That(html).DoesNotContain("\u0095");
+        await Assert.That(html).DoesNotContain("￾");
+    }
+
+    // Stretched to three times its width, each "W" is about 2.8 ems wide: a run's length is not
+    // capped at two ems a character.
+    [Test]
+    public async Task WideGlyphsKeepTheirAdvance()
+    {
+        var pdf = SinglePage("BT /F1 20 Tf 300 Tz 72 700 Td (WW) Tj ET");
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("textLength=\"113.28\"");
+        await Assert.That(html.Split("<text ").Length - 1).IsEqualTo(1);
+    }
+
+    // A page far larger than any paper still maps text to where it is drawn.
+    [Test]
+    public async Task HugePage()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 3000000 3000000] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            [4] = CraftedPdf.Stream("BT /F1 12 Tf 72 700 Td (Text) Tj ET"),
+            [5] = CraftedPdf.Helvetica
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        var html = document.RenderPageHtml(0, textOnly);
+        await Assert.That(html).Contains("<text x=\"72\" y=\"2999300\"");
     }
 
     [Test]
