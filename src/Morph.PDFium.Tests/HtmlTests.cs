@@ -729,6 +729,46 @@ public class HtmlTests
         await Assert.That(html).DoesNotContain("href=\"https:");
     }
 
+    // References that start with two slashes or backslashes, in any mix, name a host: the
+    // browser resolves "//evil.example/x" against the page's scheme, and on Windows a
+    // "\\host\share" path from a file:// page is an SMB request that can leak credentials. So
+    // they are not relative links, whatever the settings. A file link whose PDF path names a
+    // volume, "/fileserver.example/share/report.pdf", becomes one of those on Windows.
+    [Test]
+    public async Task LinksToOtherHostsAreNotRelative()
+    {
+        var pdf = CraftedPdf.Build(new()
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /Outlines 20 0 R >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [10 0 R 11 0 R 12 0 R 13 0 R 14 0 R 15 0 R 16 0 R] >>",
+            [10] = "<< /Type /Annot /Subtype /Link /Rect [72 700 300 720] /A << /S /URI /URI (//evil.example/one) >> >>",
+            [11] = "<< /Type /Annot /Subtype /Link /Rect [72 670 300 690] /A << /S /URI /URI (\\\\\\\\evil.example\\\\two) >> >>",
+            [12] = "<< /Type /Annot /Subtype /Link /Rect [72 640 300 660] /A << /S /URI /URI (/\\\\evil.example/three) >> >>",
+            [13] = "<< /Type /Annot /Subtype /Link /Rect [72 610 300 630] /A << /S /URI /URI ( \\\\/evil.example/four) >> >>",
+            [14] = "<< /Type /Annot /Subtype /Link /Rect [72 580 300 600] /A << /S /GoToR /F (/fileserver.example/share/report.pdf) /D [0 /Fit] >> >>",
+            [15] = "<< /Type /Annot /Subtype /Link /Rect [72 550 300 570] /A << /S /URI /URI (docs/other.pdf) >> >>",
+            [16] = "<< /Type /Annot /Subtype /Link /Rect [72 520 300 540] /A << /S /URI /URI (/same/host.pdf) >> >>",
+            [20] = "<< /Type /Outlines /First 21 0 R /Last 21 0 R /Count 1 >>",
+            [21] = "<< /Title (Share) /Parent 20 0 R /A << /S /URI /URI (\\\\\\\\evil.example\\\\share\\\\doc) >> >>"
+        });
+        using var document = PdfiumDocument.Load(pdf);
+        foreach (var schemes in new[] { HtmlOptions.DefaultLinkSchemes, ["https"], [] })
+        {
+            var html = document.RenderHtml(
+                textOnly with
+                {
+                    AllowedLinkSchemes = schemes
+                });
+            await Assert.That(html).DoesNotContain("evil.example");
+            await Assert.That(html).DoesNotContain("fileserver.example");
+            await Assert.That(html).Contains("<li><span>Share</span></li>");
+            // References within the same host are still relative links.
+            await Assert.That(html).Contains("<a href=\"docs/other.pdf\">");
+            await Assert.That(html).Contains("<a href=\"/same/host.pdf\">");
+        }
+    }
+
     [Test]
     public async Task NoLinks()
     {

@@ -354,6 +354,15 @@ static class HtmlWriter
         var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
         if (colon < 0 || (delimiter >= 0 && delimiter < colon))
         {
+            // Two slashes, or backslashes, which browsers read as slashes, in any mix, start a
+            // network-path reference: another host, reached with the page's own scheme, or
+            // from a file:// page on Windows an SMB share, which can leak the user's
+            // credentials. Not a relative link to anything beside the HTML, so never kept.
+            if (cleaned.Length >= 2 && cleaned[0] is '/' or '\\' && cleaned[1] is '/' or '\\')
+            {
+                return null;
+            }
+
             if (options.AllowRelativeLinks)
             {
                 return cleaned;
