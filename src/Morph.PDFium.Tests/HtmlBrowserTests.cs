@@ -10,11 +10,11 @@ public class HtmlBrowserTests
     static IPlaywright playwright = null!;
     static IBrowser browser = null!;
 
-    [Before(HookType.Class)]
+    [Before(Class)]
     public static async Task Launch()
     {
         // Downloads Chromium the first time; a no-op once it is installed.
-        var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        var exitCode = Program.Main(["install", "chromium"]);
         if (exitCode != 0)
         {
             throw new($"Installing Chromium for Playwright failed with exit code {exitCode}");
@@ -24,15 +24,17 @@ public class HtmlBrowserTests
         browser = await playwright.Chromium.LaunchAsync();
     }
 
-    [After(HookType.Class)]
+    [After(Class)]
     public static async Task Close()
     {
         // Either may be missing when Launch failed; that failure is the one to see.
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (browser is not null)
         {
             await browser.DisposeAsync();
         }
 
+        // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
         playwright?.Dispose();
     }
 

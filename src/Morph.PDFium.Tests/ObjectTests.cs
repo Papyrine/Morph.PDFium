@@ -1,5 +1,3 @@
-using System.Text;
-
 public class ObjectTests
 {
     [Test]
@@ -106,7 +104,7 @@ public class ObjectTests
         var characters = new StringBuilder();
         for (var character = ' '; character <= 'ÿ'; character++)
         {
-            if (character is (>= ' ' and <= '~') or (>= '¡' and <= 'ÿ') && character != '\u00AD')
+            if (character is >= ' ' and <= '~' or >= '¡' and <= 'ÿ' && character != '\u00AD')
             {
                 characters.Append(character);
             }

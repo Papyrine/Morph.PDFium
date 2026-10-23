@@ -250,7 +250,7 @@ public class Samples
 
             using var document = PdfiumDocument.Load("multi-page.pdf");
             var html = document.RenderHtml(
-                new HtmlOptions
+                new()
                 {
                     Render = new()
                     {

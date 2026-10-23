@@ -131,8 +131,8 @@ public class RealDocumentTests
     {
         using var document = PdfiumDocument.Load(ProjectFiles.irs_f1040_pdf);
         using var page = document.LoadPage(0);
-        await Assert.That(page.Size).IsEqualTo(new PageSize(612, 792));
-        await Assert.That(page.GetBoundingBox()).IsEqualTo(new PdfRectangle(0, 0, 612, 792));
+        await Assert.That(page.Size).IsEqualTo(new(612, 792));
+        await Assert.That(page.GetBoundingBox()).IsEqualTo(new(0, 0, 612, 792));
     }
 
     [Test]

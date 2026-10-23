@@ -207,7 +207,7 @@ For a long document, pass a `TextWriter` (a `StreamWriter` over a file, say) to 
 ```cs
 using var document = PdfiumDocument.Load("multi-page.pdf");
 var html = document.RenderHtml(
-    new HtmlOptions
+    new()
     {
         Render = new()
         {

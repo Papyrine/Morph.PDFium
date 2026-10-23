@@ -262,7 +262,7 @@ public class EditTests
 
         // The name is free again, and the new attachment is usable.
         var again = document.AddAttachment("a.bin", [7]);
-        await Bytes.AreEqual(again.GetData(), new byte[] { 7 });
+        await Bytes.AreEqual(again.GetData(), [7]);
     }
 
     // An attachment whose file specification is a dictionary held directly in the name tree,

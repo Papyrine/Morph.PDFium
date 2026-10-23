@@ -81,7 +81,7 @@ public class HtmlTests
     public async Task ImageUrlIsGivenEachPage()
     {
         using var document = PdfiumDocument.Load(ProjectFiles.multi_page_pdf);
-        var pages = new System.Collections.Concurrent.ConcurrentDictionary<int, byte[]>();
+        var pages = new ConcurrentDictionary<int, byte[]>();
         var html = document.RenderHtml(
             new()
             {
@@ -110,7 +110,7 @@ public class HtmlTests
         {
             Dpi = 72
         };
-        var pages = new System.Collections.Concurrent.ConcurrentDictionary<int, byte[]>();
+        var pages = new ConcurrentDictionary<int, byte[]>();
         var html = document.RenderHtml(
             new()
             {
@@ -337,11 +337,12 @@ public class HtmlTests
         // text, but the HTML draws the text on top: text covered by later drawing is not yet
         // detected.
         await Verify(
-            [
-                new("html", html),
-                new Target("png", new MemoryStream(background!), "background"),
-                new Target("png", new MemoryStream(document.RenderPage(0)), "render")
-            ])
+                new List<Target>
+                {
+                    new("html", html),
+                    new("png", new MemoryStream(background!), "background"),
+                    new("png", new MemoryStream(document.RenderPage(0)), "render")
+                })
             .Snapshot(
                 """
                 <div class="pdf-page" id="page-1" style="position:relative;overflow:hidden;width:612pt;max-width:100%;aspect-ratio:612/792;background:#ffffff;page:pdf-612x792">
@@ -398,7 +399,7 @@ public class HtmlTests
     // switched back, and the next content regeneration rewrites the page's content streams in
     // full. So an edit after visible text HTML must save exactly as the same edit without it.
     [Test]
-    public async Task BackgroundLeavesNoTraceForLaterEdits()
+    public Task BackgroundLeavesNoTraceForLaterEdits()
     {
         static byte[] EditAndSave(bool renderHtml)
         {
@@ -421,13 +422,13 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
+        return Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // The document's own conversions hide the text in place, on a page they load and dispose
     // themselves, so the same holds after them for a page loaded afterwards.
     [Test]
-    public async Task DocumentConversionLeavesNoTraceForLaterEdits()
+    public Task DocumentConversionLeavesNoTraceForLaterEdits()
     {
         static byte[] EditAndSave(bool renderHtml)
         {
@@ -451,7 +452,7 @@ public class HtmlTests
             return WithoutTrailer(document.Save());
         }
 
-        await Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
+        return Bytes.AreEqual(EditAndSave(true), EditAndSave(false));
     }
 
     // Every save writes a fresh random file identifier into the trailer, so saves are compared
@@ -843,7 +844,7 @@ public class HtmlTests
         });
         using var document = PdfiumDocument.Load(pdf);
         using var page = document.LoadPage(0);
-        await Assert.That(page.GetLinks()[0].Rectangle).IsEqualTo(new PdfRectangle(72, 690, 300, 720));
+        await Assert.That(page.GetLinks()[0].Rectangle).IsEqualTo(new(72, 690, 300, 720));
         var html = page.RenderHtml(textOnly);
         await Assert.That(html).Contains("<a href=\"https://example.com/reversed\"><rect x=\"72\" y=\"72\" width=\"228\" height=\"30\" fill=\"transparent\"/></a>");
     }
@@ -1352,7 +1353,7 @@ public class HtmlTests
     [Arguments(17)]
     public async Task SpacesOnTheThresholdsKeepOneRun(double size)
     {
-        var sizeText = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var sizeText = size.ToString(CultureInfo.InvariantCulture);
         var pdf = CraftedPdf.Build(new()
         {
             [1] = "<< /Type /Catalog /Pages 2 0 R >>",
@@ -1483,7 +1484,7 @@ public class HtmlTests
         await Assert.That(() => document.RenderPageHtml(0, new() { AllowedLinkSchemes = ["https", ""] })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { ImageUrl = (_, _) => "", ImageUrlFromPixels = (_, _) => "" })).Throws<ArgumentException>();
         await Assert.That(() => document.RenderPageHtml(0, new() { Render = new() { Dpi = 0 } })).Throws<ArgumentOutOfRangeException>();
-        await Assert.That(() => document.RenderHtml(new HtmlOptions { MaxPages = 0 })).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => document.RenderHtml(new() { MaxPages = 0 })).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderPageHtml(1)).Throws<ArgumentOutOfRangeException>();
         await Assert.That(() => document.RenderHtml((TextWriter) null!)).Throws<ArgumentNullException>();
     }
