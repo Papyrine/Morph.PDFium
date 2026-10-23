@@ -28,8 +28,8 @@ static class HtmlWriter
     // the page property, and the document declares one @page rule of that size per name. In a
     // fragment placed on its own, the name matches no rule, and the page prints on whatever
     // sheet the browser chooses.
-    static string PageName(string width, string height) =>
-        $"pdf-{width.Replace('.', '_')}x{height.Replace('.', '_')}";
+    static string PageName(CssNumber width, CssNumber height) =>
+        $"pdf-{width}x{height}".Replace('.', '_');
 
     const string dataUriPrefix = "data:image/png;base64,";
 
@@ -133,17 +133,17 @@ static class HtmlWriter
         }
 
         var angle = Number(run.Angle);
-        if (angle != "0" || run.Mirrored)
+        if (!angle.IsZero || run.Mirrored)
         {
             builder.Append(" transform=\"");
-            if (angle != "0")
+            if (!angle.IsZero)
             {
                 builder.Append($"rotate({angle} {x} {y})");
             }
 
             if (run.Mirrored)
             {
-                if (angle != "0")
+                if (!angle.IsZero)
                 {
                     builder.Append(' ');
                 }
@@ -519,16 +519,6 @@ static class HtmlWriter
         return $"rgba({color.R},{color.G},{color.B},{Number(color.A / 255d)})";
     }
 
-    // Two decimals of a point is well below a pixel at any sensible zoom.
-    static string Number(double value)
-    {
-        var rounded = Math.Round(value, 2);
-        // Also turns -0, which would print as "-0", into 0.
-        if (rounded == 0)
-        {
-            return "0";
-        }
-
-        return rounded.ToString("0.##", CultureInfo.InvariantCulture);
-    }
+    static CssNumber Number(double value) =>
+        new(value);
 }
