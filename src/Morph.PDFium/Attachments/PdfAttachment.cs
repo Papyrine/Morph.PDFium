@@ -9,9 +9,9 @@
 /// </summary>
 public sealed class PdfAttachment
 {
-    readonly PdfiumDocument document;
-    readonly IntPtr handle;
-    readonly AttachmentToken token;
+    PdfiumDocument document;
+    IntPtr handle;
+    AttachmentToken token;
 
     internal PdfAttachment(PdfiumDocument document, IntPtr handle, AttachmentToken token)
     {

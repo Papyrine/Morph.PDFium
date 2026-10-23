@@ -50,7 +50,8 @@ static class HeaderFooterArtifacts
                 return;
             case Kind.Pagination:
                 var bounds = Bounds(pageObject, toPage);
-                if (bounds is { } onPage && InMarginBand(display.Map(onPage), height))
+                if (bounds is { } onPage &&
+                    InMarginBand(display.Map(onPage), height))
                 {
                     found(pageObject, bounds);
                     return;
@@ -195,7 +196,7 @@ static class HeaderFooterArtifacts
         Span<byte> buffer = stackalloc byte[18];
         return PdfiumNative.FPDFPageObjMark_GetName(mark, buffer, (uint) buffer.Length, out var length) &&
                length == buffer.Length &&
-               MemoryMarshal.Cast<byte, char>(buffer[..^2]).SequenceEqual("Artifact");
+               MemoryMarshal.Cast<byte, char>(buffer[..^2]) is "Artifact";
     }
 
     // The property's value: a string's text, name for a name, or null for anything else,

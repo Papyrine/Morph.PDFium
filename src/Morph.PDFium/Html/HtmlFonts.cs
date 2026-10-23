@@ -16,7 +16,10 @@ static class HtmlFonts
     {
         var name = StripSubsetPrefix(fontName);
         var family = Family(name);
-        var bold = (flags & forceBold) != 0 || Contains(name, "Bold") || Contains(name, "Black") || Contains(name, "Heavy");
+        var bold = (flags & forceBold) != 0 ||
+                   Contains(name, "Bold") ||
+                   Contains(name, "Black") ||
+                   Contains(name, "Heavy");
         if (weight <= 0)
         {
             weight = 400;
@@ -28,14 +31,18 @@ static class HtmlFonts
             weight = 700;
         }
 
-        var isItalic = (flags & italic) != 0 || Contains(name, "Italic") || Contains(name, "Oblique");
+        var isItalic = (flags & italic) != 0 ||
+                       Contains(name, "Italic") ||
+                       Contains(name, "Oblique");
         return new(family, Generic(name, flags), weight, isItalic, null, null, 0);
     }
 
     // A subset font's name starts with six capital letters and a plus sign.
     static string? StripSubsetPrefix(string? name)
     {
-        if (name is { Length: > 7 } && name[6] == '+' && !name.AsSpan(0, 6).ContainsAnyExceptInRange('A', 'Z'))
+        if (name is { Length: > 7 } &&
+            name[6] == '+' &&
+            !name.AsSpan(0, 6).ContainsAnyExceptInRange('A', 'Z'))
         {
             return name[7..];
         }
@@ -62,7 +69,8 @@ static class HtmlFonts
         var builder = new StringBuilder(name.Length);
         foreach (var character in name)
         {
-            if (char.IsAsciiLetterOrDigit(character) || character is ' ' or '_' or '.')
+            if (char.IsAsciiLetterOrDigit(character) ||
+                character is ' ' or '_' or '.')
             {
                 builder.Append(character);
             }
@@ -78,17 +86,26 @@ static class HtmlFonts
 
     static string Generic(string? name, int flags)
     {
-        if ((flags & fixedPitch) != 0 || Contains(name, "Courier") || Contains(name, "Mono") || Contains(name, "Consol"))
+        if ((flags & fixedPitch) != 0 ||
+            Contains(name, "Courier") ||
+            Contains(name, "Mono") ||
+            Contains(name, "Consol"))
         {
             return "monospace";
         }
 
-        if (Contains(name, "Sans") || Contains(name, "Arial") || Contains(name, "Helvetica"))
+        if (Contains(name, "Sans") ||
+            Contains(name, "Arial") ||
+            Contains(name, "Helvetica"))
         {
             return "sans-serif";
         }
 
-        if ((flags & serif) != 0 || Contains(name, "Times") || Contains(name, "Serif") || Contains(name, "Georgia") || Contains(name, "Garamond"))
+        if ((flags & serif) != 0 ||
+            Contains(name, "Times") ||
+            Contains(name, "Serif") ||
+            Contains(name, "Georgia") ||
+            Contains(name, "Garamond"))
         {
             return "serif";
         }
@@ -97,5 +114,6 @@ static class HtmlFonts
     }
 
     static bool Contains(string? name, string value) =>
-        name is not null && name.Contains(value, StringComparison.OrdinalIgnoreCase);
+        name is not null &&
+        name.Contains(value, StringComparison.OrdinalIgnoreCase);
 }

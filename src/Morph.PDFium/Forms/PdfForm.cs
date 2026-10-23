@@ -1,34 +1,5 @@
 namespace Morph.PDFium;
 
-/// <summary>The kind of interactive form a document carries.</summary>
-public enum FormType
-{
-    /// <summary>The document has no interactive form.</summary>
-    None = 0,
-
-    /// <summary>An AcroForm (the standard PDF interactive form).</summary>
-    AcroForm = 1,
-
-    /// <summary>A full XFA form (not supported by the default PDFium build).</summary>
-    XfaFull = 2,
-
-    /// <summary>An XFA foreground form (not supported by the default PDFium build).</summary>
-    XfaForeground = 3
-}
-
-/// <summary>The type of an interactive form field.</summary>
-public enum FormFieldType
-{
-    Unknown = 0,
-    PushButton = 1,
-    CheckBox = 2,
-    RadioButton = 3,
-    ComboBox = 4,
-    ListBox = 5,
-    TextField = 6,
-    Signature = 7
-}
-
 /// <summary>
 /// An interactive form-fill session over a document. Required for reading AcroForm field
 /// values and for rendering filled-in widgets. Obtain one with

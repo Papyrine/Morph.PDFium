@@ -324,7 +324,11 @@ sealed class HtmlTextRunBuilder(DisplayMatrix matrix)
         }
 
         // A run whose one space is wide is a bullet or a list number and a few words.
-        if (!reversed && !settled && spaces == 1 && indents.Count == 1 && wordSpace > fontSize * loneIndent)
+        if (!reversed &&
+            !settled &&
+            spaces == 1 &&
+            indents.Count == 1 &&
+            wordSpace > fontSize * loneIndent)
         {
             SplitAtIndents();
         }
