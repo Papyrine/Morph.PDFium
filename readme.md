@@ -200,6 +200,8 @@ For a long document, pass a `TextWriter` (a `StreamWriter` over a file, say) to 
 
 `HtmlOptions.MaxPages` renders only a document's first pages, without changing the document. A bookmark to a page left out stays in the outline as plain text, links to those pages are dropped, and only the pages rendered get a printed page size.
 
+`IncludeHeadersAndFooters = false` leaves out the running headers and footers that a tagged PDF marks as pagination artifacts (`/Artifact` marked content with `/Type /Pagination`, `/Subtype /Header` or `/Footer`, as Word writes them), from each page's image, text and links. Untagged content stays, whatever it looks like. PDFium cannot read the subtype when it is a name, as it usually is, so a pagination artifact counts only when it lies wholly within the top or bottom 15% of the displayed page: a watermark across the body stays, but a page or Bates number in those margins goes with the footer, as would a watermark drawn wholly within them.
+
 <!-- snippet: RenderHtmlOptions -->
 <a id='snippet-RenderHtmlOptions'></a>
 ```cs

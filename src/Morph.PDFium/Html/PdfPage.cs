@@ -31,9 +31,11 @@ public sealed partial class PdfPage
         }
         else if (options.IncludeImage)
         {
-            // Visible text is drawn over the image, so the image leaves it out rather than show
-            // it twice.
-            png = options.Text == HtmlTextMode.Visible ? RenderWithoutText(options.Render, owned) : Render(options.Render);
+            using (var rendered = RenderHtmlPixels(options, owned))
+            {
+                png = PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Render.Dpi, (int) options.Render.CompressionLevel);
+            }
+
             if (options.ImageUrl is not null)
             {
                 imageUrl = options.ImageUrl(layout.Index, png);
@@ -44,14 +46,16 @@ public sealed partial class PdfPage
         return HtmlWriter.Page(layout, imageUrl, png, options);
     }
 
-    // The page's image as pixels, for ImageUrlFromPixels: without its text under visible text,
-    // as RenderHtmlPage's PNG is.
+    // The page's image as pixels. Visible text is drawn over the image, so the image leaves it
+    // out rather than show it twice, and headers and footers left out of the HTML are left out
+    // of it too.
     RenderedPixels RenderHtmlPixels(HtmlOptions options, bool owned)
     {
         var render = options.Render;
-        if (options.Text == HtmlTextMode.Visible)
+        var text = options.Text == HtmlTextMode.Visible;
+        if (text || !options.IncludeHeadersAndFooters)
         {
-            return RenderPixelsWithoutText(render, owned);
+            return RenderPixelsHiding(render, text, !options.IncludeHeadersAndFooters, owned);
         }
 
         return RenderPixels(render.Dpi, render.ToFlags(), render.ToFillColor(), null);
@@ -63,22 +67,43 @@ public sealed partial class PdfPage
         double height;
         DisplayMatrix matrix;
         IReadOnlyList<HtmlTextRun> runs = [];
+        // The text objects of the headers and footers left out, and the areas they cover.
+        HashSet<IntPtr>? leftOutText = null;
+        List<PdfRectangle>? leftOutAreas = null;
         lock (PdfiumNative.Sync)
         {
             var page = ValidHandle();
             width = PdfiumNative.FPDF_GetPageWidthF(page);
             height = PdfiumNative.FPDF_GetPageHeightF(page);
             matrix = ReadDisplayMatrix(page, width, height);
+            if (!options.IncludeHeadersAndFooters)
+            {
+                var texts = leftOutText = [];
+                var areas = leftOutAreas = [];
+                HeaderFooterArtifacts.Find(
+                    page,
+                    matrix,
+                    height,
+                    (pageObject, bounds) =>
+                    {
+                        HeaderFooterArtifacts.AddTextObjects(pageObject, texts);
+                        if (bounds is { } found)
+                        {
+                            areas.Add(found);
+                        }
+                    });
+            }
+
             if (options.Text != HtmlTextMode.None)
             {
-                runs = ReadTextRuns(matrix, options.Text == HtmlTextMode.Visible);
+                runs = ReadTextRuns(matrix, options.Text == HtmlTextMode.Visible, leftOutText);
             }
         }
 
         IReadOnlyList<HtmlLink> links = [];
         if (options.IncludeLinks)
         {
-            links = ReadHtmlLinks(matrix, options);
+            links = ReadHtmlLinks(matrix, options, leftOutAreas);
         }
 
         return new(Index, width, height, runs, links);
@@ -138,8 +163,9 @@ public sealed partial class PdfPage
         return value;
     }
 
-    // Caller must hold PdfiumNative.Sync.
-    List<HtmlTextRun> ReadTextRuns(DisplayMatrix matrix, bool visible)
+    // Caller must hold PdfiumNative.Sync. Characters of the text objects in leftOut are left
+    // out, and end the run before them.
+    List<HtmlTextRun> ReadTextRuns(DisplayMatrix matrix, bool visible, HashSet<IntPtr>? leftOut)
     {
         var text = TextHandle();
         var count = PdfiumNative.FPDFText_CountChars(text);
@@ -159,6 +185,19 @@ public sealed partial class PdfPage
             var afterHighSurrogate = highSurrogateAdded;
             highSurrogateAdded = false;
             if (unicode is '\r' or '\n')
+            {
+                builder.Flush();
+                continue;
+            }
+
+            // Generated characters have no text object, so stay.
+            var textObject = IntPtr.Zero;
+            if (visible || leftOut is not null)
+            {
+                textObject = PdfiumNative.FPDFText_GetTextObject(text, index);
+            }
+
+            if (leftOut is not null && textObject != IntPtr.Zero && leftOut.Contains(textObject))
             {
                 builder.Flush();
                 continue;
@@ -190,7 +229,6 @@ public sealed partial class PdfPage
             HtmlTextStyle style = default;
             if (visible)
             {
-                var textObject = PdfiumNative.FPDFText_GetTextObject(text, index);
                 if (!styles.TryGetValue(textObject, out var cached))
                 {
                     cached = ReadTextStyle(text, index, textObject, fonts);
@@ -369,14 +407,15 @@ public sealed partial class PdfPage
         };
     }
 
-    List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, HtmlOptions options)
+    // A link whose middle lies in one of leftOutAreas, a header or footer left out, goes too.
+    List<HtmlLink> ReadHtmlLinks(DisplayMatrix matrix, HtmlOptions options, List<PdfRectangle>? leftOutAreas)
     {
         var links = new List<HtmlLink>();
         var annotated = new List<(string Href, PdfRectangle Rectangle)>();
         foreach (var link in GetLinks())
         {
             var href = HtmlWriter.Href(link.Destination, link.Action, options);
-            if (href is null || link.Rectangle.Width <= 0 || link.Rectangle.Height <= 0)
+            if (href is null || link.Rectangle.Width <= 0 || link.Rectangle.Height <= 0 || IsLeftOut(link.Rectangle, leftOutAreas))
             {
                 continue;
             }
@@ -391,7 +430,9 @@ public sealed partial class PdfPage
         foreach (var webLink in GetWebLinks())
         {
             var href = HtmlWriter.SafeUrl(webLink.Url, options);
-            if (href is null || IsAnnotated(href, webLink.Rectangles, annotated))
+            if (href is null ||
+                IsAnnotated(href, webLink.Rectangles, annotated) ||
+                webLink.Rectangles.Any(_ => IsLeftOut(_, leftOutAreas)))
             {
                 continue;
             }
@@ -400,6 +441,26 @@ public sealed partial class PdfPage
         }
 
         return links;
+    }
+
+    static bool IsLeftOut(PdfRectangle rectangle, List<PdfRectangle>? leftOutAreas)
+    {
+        if (leftOutAreas is null)
+        {
+            return false;
+        }
+
+        var x = (rectangle.Left + rectangle.Right) / 2;
+        var y = (rectangle.Bottom + rectangle.Top) / 2;
+        foreach (var area in leftOutAreas)
+        {
+            if (x >= area.Left && x <= area.Right && y >= area.Bottom && y <= area.Top)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static bool IsAnnotated(string href, IReadOnlyList<PdfRectangle> rectangles, List<(string Href, PdfRectangle Rectangle)> annotated)
