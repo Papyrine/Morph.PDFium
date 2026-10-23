@@ -1,7 +1,7 @@
 # PDFium native API coverage
 
 The bundled `pdfium.dll` (bblanchon.PDFium 158.0.8111) exports **471** functions —
-the complete public PDFium C API. Morph.PDFium currently binds **163** of them and
+the complete public PDFium C API. Morph.PDFium currently binds **170** of them and
 surfaces the meaningful subset through a managed API. This document records what is
 wrapped, and — more importantly — what is **not yet implemented**, with the reason.
 
@@ -14,7 +14,7 @@ declarations in `PdfiumNative.*.cs`; counts will drift as bindings are added.
 |------|----------------------|
 | Document load / metadata | `PdfiumDocument.Load`, `GetProperties`, `GetPdfVersion`, `GetPermissions`/`GetUserPermissions`, `GetSecurityHandlerRevision`, `GetPageDisplayMode`, `GetPageLabel`, `GetFileIdentifier`, `GetLanguage` |
 | Pages & rendering | `PageCount`, `GetPageSize(s)`, `RenderPage` (DPI or `RenderOptions`), `RenderPages`, `RenderRegion` (clip/scale), `LoadPage` → `PdfPage` |
-| HTML | `RenderHtml` (whole document), `RenderPageHtml` / `PdfPage.RenderHtml` (page fragment), `HtmlOptions`; uses char origin/loose box/angle/matrix, font info/weight, fill and stroke color, text object render mode (get and set, to render the page without its text) and stroke width, form XObject children, text object font, generated flag and `FPDF_PageToDevice` |
+| HTML | `RenderHtml` (whole document), `RenderPageHtml` / `PdfPage.RenderHtml` (page fragment), `HtmlOptions`; uses char origin/loose box/angle/matrix, font info/weight, fill and stroke color, text object render mode (get and set, to render the page without its text) and stroke width, form XObject children, text object font, generated flag, `FPDF_PageToDevice`, and page object marks, matrix and active flag (to leave out header and footer artifacts) |
 | Text & search | `PdfPage.GetText`, `GetChars`, `GetTextInRectangle`, `GetTextRectangles`, `GetCharIndexAt`, `Search` |
 | Navigation | `GetBookmarks` (outline tree), destinations, actions, `PdfPage.GetLinks`, `GetWebLinks` |
 | Annotations | `PdfPage.GetAnnotations`, `AddAnnotation`, `RemoveAnnotation` |
@@ -54,7 +54,7 @@ These are genuine candidates; they were out of scope for the first pass.
 | Native group | Unwrapped | Notes |
 |--------------|-----------|-------|
 | `FPDFAnnot_*` (`fpdf_annot.h`) | 49 | Only subtype/rect/color/contents read + create/remove are wrapped. Ink lists, vertices, quad points, attachment points, appearance streams, link/focus subtypes, object append, and most form-field setters are not. |
-| `FPDFPageObj_*` / `FPDFPath_*` / `FPDFImageObj_*` / `FPDFTextObj_*` / `FPDFFont_*` / `FPDFClipPath_*` / `FPDFPageObjMark_*` | ~95 | Deep content editing: image objects (load JPEG / set bitmap), path-segment iteration, font embedding from data, marked content, glyph paths, clip paths. Only text/rectangle creation and object enumeration are wrapped. |
+| `FPDFPageObj_*` / `FPDFPath_*` / `FPDFImageObj_*` / `FPDFTextObj_*` / `FPDFFont_*` / `FPDFClipPath_*` / `FPDFPageObjMark_*` | ~95 | Deep content editing: image objects (load JPEG / set bitmap), path-segment iteration, font embedding from data, marked content (only read, for header and footer artifacts), glyph paths, clip paths. Only text/rectangle creation and object enumeration are wrapped. |
 | `FORM_*` (`fpdf_formfill.h`) | 31 | Interactive form *events* — `FORM_OnLButtonDown`, keystrokes, focus, selection, `FORM_GetFocusedText`, etc. The wrapper does headless field read + widget render only. |
 | `FPDF_StructElement_*` (`fpdf_structtree.h`) | 23 | Beyond type/title/alt-text/children: IDs, language, marked-content IDs, parents, and the full attribute-map API. |
 | `FPDFText_*` (`fpdf_text.h`) | 9 | Hyphen flag, unicode-map-error flag, char/text index conversion, and the text-object editing calls (`LoadFont`, `LoadStandardFont`, `LoadCidType`, `SetCharcodes`, `SetPositions`). |

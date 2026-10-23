@@ -60,6 +60,40 @@ static partial class PdfiumNative
     [LibraryImport(library)]
     internal static partial void FPDFPageObj_Destroy(IntPtr pageObject);
 
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObj_GetMatrix(IntPtr pageObject, out FsMatrix matrix);
+
+    // An inactive object stays on its page but is drawn, and written, as if it were not there.
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObj_SetIsActive(IntPtr pageObject, [MarshalAs(UnmanagedType.Bool)] bool active);
+
+    // --- Marked content (fpdf_edit.h) ---
+
+    // The marks of every marked-content sequence an object sits in, innermost last. Those of
+    // the content stream that draws a form XObject are not repeated on the form's own objects.
+    [LibraryImport(library)]
+    internal static partial int FPDFPageObj_CountMarks(IntPtr pageObject);
+
+    [LibraryImport(library)]
+    internal static partial IntPtr FPDFPageObj_GetMark(IntPtr pageObject, uint index);
+
+    // The mark's tag, in UTF-16LE; outLength is the bytes it needs, terminator included.
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObjMark_GetName(IntPtr mark, Span<byte> buffer, uint length, out uint outLength);
+
+    public const int ObjectString = 3;
+    public const int ObjectName = 4;
+
+    [LibraryImport(library)]
+    internal static partial int FPDFPageObjMark_GetParamValueType(IntPtr mark, ReadOnlySpan<byte> key);
+
+    [LibraryImport(library)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool FPDFPageObjMark_GetParamStringValue(IntPtr mark, ReadOnlySpan<byte> key, Span<byte> buffer, uint length, out uint outLength);
+
     // --- Structure tree (fpdf_structtree.h) ---
 
     [LibraryImport(library)]

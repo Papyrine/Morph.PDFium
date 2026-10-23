@@ -56,12 +56,14 @@ public sealed partial class PdfPage
     /// </remarks>
     internal byte[] RenderWithoutText(RenderOptions options, bool inPlace)
     {
-        using var rendered = RenderPixelsWithoutText(options, inPlace);
+        using var rendered = RenderPixelsHiding(options, true, false, inPlace);
         return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
     }
 
-    // RenderWithoutText's pixels, before they are encoded.
-    internal RenderedPixels RenderPixelsWithoutText(RenderOptions options, bool inPlace)
+    // This page's pixels without its text, as RenderWithoutText explains, or without its
+    // header and footer artifacts (see HeaderFooterArtifacts), which are made inactive, so
+    // drawn as if they were not there, on the same throwaway or in-place terms.
+    internal RenderedPixels RenderPixelsHiding(RenderOptions options, bool text, bool headersAndFooters, bool inPlace)
     {
         lock (PdfiumNative.Sync)
         {
@@ -81,10 +83,13 @@ public sealed partial class PdfPage
 
             try
             {
-                var count = PdfiumNative.FPDFPage_CountObjects(page);
-                for (var index = 0; index < count; index++)
+                if (text)
                 {
-                    HideText(PdfiumNative.FPDFPage_GetObject(page, index), 0);
+                    var count = PdfiumNative.FPDFPage_CountObjects(page);
+                    for (var index = 0; index < count; index++)
+                    {
+                        HideText(PdfiumNative.FPDFPage_GetObject(page, index), 0);
+                    }
                 }
 
                 var size = new PdfiumNative.PageSizeF
@@ -92,6 +97,12 @@ public sealed partial class PdfPage
                     Width = PdfiumNative.FPDF_GetPageWidthF(page),
                     Height = PdfiumNative.FPDF_GetPageHeightF(page)
                 };
+                if (headersAndFooters)
+                {
+                    var display = ReadDisplayMatrix(page, size.Width, size.Height);
+                    HeaderFooterArtifacts.Find(page, display, size.Height, static (pageObject, _) => PdfiumNative.FPDFPageObj_SetIsActive(pageObject, false));
+                }
+
                 return PdfiumDocument.RenderLoadedPage(page, size, Index, options.Dpi, options.ToFlags() | PdfiumNative.ReverseByteOrder, options.ToFillColor(), null, IntPtr.Zero);
             }
             finally

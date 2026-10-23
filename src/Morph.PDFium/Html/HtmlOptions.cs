@@ -54,6 +54,27 @@ public sealed record HtmlOptions
     public static IReadOnlyCollection<string> DefaultLinkSchemes { get; } = ["http", "https", "mailto", "ftp", "tel"];
 
     /// <summary>
+    /// Whether each page keeps the running headers and footers that a tagged PDF marks as
+    /// pagination artifacts (<c>/Artifact</c> marked content with <c>/Type /Pagination</c> and
+    /// <c>/Subtype /Header</c> or <c>/Footer</c>), as Word and other tagged-PDF producers do.
+    /// On by default. Turned off, they are left out of the page's image, its text and its
+    /// links (a link whose middle lies in one). Only what the PDF tags this way is left out:
+    /// an untagged PDF's headers and footers are ordinary content, and stay.
+    /// </summary>
+    /// <remarks>
+    /// PDFium cannot read <c>/Type</c> and <c>/Subtype</c> when they are names, as producers
+    /// write them, only that they are names. So a pagination artifact with a subtype name
+    /// counts as a header or footer only when it lies wholly within the top or the bottom 15%
+    /// of the page's height as displayed (after its rotation). A watermark across the body
+    /// stays, but a page or Bates number in those margins goes with the footer, as would a
+    /// watermark drawn wholly within them. Values written as strings are read, and a header or
+    /// footer so marked goes wherever it lies. A form XObject drawn in a header goes whole;
+    /// within other forms, their own marked headers and footers are found, through forms
+    /// nested up to 32 deep.
+    /// </remarks>
+    public bool IncludeHeadersAndFooters { get; init; } = true;
+
+    /// <summary>
     /// Whether a whole document's HTML starts with its outline (bookmarks) as a nested list
     /// of links, when it has one.
     /// </summary>
