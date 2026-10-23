@@ -1,5 +1,3 @@
-using Morph.PDFium;
-
 /// <summary>
 /// Groups a page's characters, fed in text stream order, into <see cref="HtmlTextRun"/>s:
 /// each run holds the characters that follow on from one another along one baseline in one

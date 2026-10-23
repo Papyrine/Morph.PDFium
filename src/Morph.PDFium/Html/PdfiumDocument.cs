@@ -61,7 +61,7 @@ public sealed partial class PdfiumDocument
         HtmlWriter.DocumentStart(writer, title ?? "Document", language, properties, outline, sizes, options);
         // Each page is written as soon as it and the pages before it are rendered, so a long
         // document is never held in memory whole.
-        ProcessPagesInOrder(count, _ => _.RenderHtmlPage(options, owned: true), _ => writer.Write(_));
+        ProcessPagesInOrder(count, _ => _.RenderHtmlPage(options, owned: true), writer.Write);
         writer.Write(HtmlWriter.DocumentEnd);
     }
 }

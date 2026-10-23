@@ -260,7 +260,8 @@ static class HtmlWriter
 
     static void AppendMeta(StringBuilder builder, string name, Dictionary<string, string>? properties, string property)
     {
-        if (properties is null || !properties.TryGetValue(property, out var value))
+        if (properties is null ||
+            !properties.TryGetValue(property, out var value))
         {
             return;
         }
@@ -412,13 +413,15 @@ static class HtmlWriter
         // the drive of "C:\file.pdf", is rejected along with the unsafe schemes.
         var colon = cleaned.IndexOf(':');
         var delimiter = cleaned.IndexOfAny(['/', '?', '#']);
-        if (colon < 0 || (delimiter >= 0 && delimiter < colon))
+        if (colon < 0 ||
+            (delimiter >= 0 &&
+             delimiter < colon))
         {
             // Two slashes, or backslashes, which browsers read as slashes, in any mix, start a
             // network-path reference: another host, reached with the page's own scheme, or
             // from a file:// page on Windows an SMB share, which can leak the user's
             // credentials. Not a relative link to anything beside the HTML, so never kept.
-            if (cleaned.Length >= 2 && cleaned[0] is '/' or '\\' && cleaned[1] is '/' or '\\')
+            if (cleaned is ['/' or '\\', '/' or '\\', ..])
             {
                 return null;
             }
@@ -482,10 +485,12 @@ static class HtmlWriter
                     builder.Append(character);
                     break;
                 // C0 and C1 controls and DEL, and the two noncharacters a UTF-16 unit can hold.
-                case < ' ' or (>= '\u007F' and <= '\u009F') or '\uFFFE' or '\uFFFF':
+                case < ' ' or >= '\u007F' and <= '\u009F' or '\uFFFE' or '\uFFFF':
                     break;
                 default:
-                    if (char.IsHighSurrogate(character) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))
+                    if (char.IsHighSurrogate(character) &
+                        index + 1 < value.Length &&
+                        char.IsLowSurrogate(value[index + 1]))
                     {
                         builder.Append(character).Append(value[index + 1]);
                         index++;

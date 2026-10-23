@@ -243,37 +243,31 @@ public class Samples
     [Test]
     public async Task RenderHtmlOptions()
     {
-        var directory = Directory.CreateTempSubdirectory().FullName;
-        try
-        {
-            #region RenderHtmlOptions
+        using var directory = new TempDirectory();
 
-            using var document = PdfiumDocument.Load("multi-page.pdf");
-            var html = document.RenderHtml(
-                new()
+        #region RenderHtmlOptions
+
+        using var document = PdfiumDocument.Load("multi-page.pdf");
+        var html = document.RenderHtml(
+            new()
+            {
+                Render = new()
                 {
-                    Render = new()
-                    {
-                        Dpi = 150
-                    },
-                    // Write each page's image beside the HTML rather than embedding it
-                    ImageUrl = (index, png) =>
-                    {
-                        var name = $"page{index + 1}.png";
-                        File.WriteAllBytes(Path.Combine(directory, name), png);
-                        return name;
-                    }
-                });
-            File.WriteAllText(Path.Combine(directory, "document.html"), html);
+                    Dpi = 150
+                },
+                // Write each page's image beside the HTML rather than embedding it
+                ImageUrl = (index, png) =>
+                {
+                    var name = $"page{index + 1}.png";
+                    File.WriteAllBytes(Path.Combine(directory, name), png);
+                    return name;
+                }
+            });
+        File.WriteAllText(Path.Combine(directory, "document.html"), html);
 
-            #endregion
+        #endregion
 
-            await Assert.That(File.Exists(Path.Combine(directory, "page4.png"))).IsTrue();
-        }
-        finally
-        {
-            Directory.Delete(directory, true);
-        }
+        await Assert.That(File.Exists(Path.Combine(directory, "page4.png"))).IsTrue();
     }
 
     [Test]
@@ -283,13 +277,12 @@ public class Samples
 
         using var document = PdfiumDocument.Load("sample.pdf");
         // Text-only HTML: the text in its own color and style, with no page image
-        var fragment = document.RenderPageHtml(
-            0,
-            new HtmlOptions
-            {
-                IncludeImage = false,
-                Text = HtmlTextMode.Visible
-            });
+        var options = new HtmlOptions
+        {
+            IncludeImage = false,
+            Text = HtmlTextMode.Visible
+        };
+        var fragment = document.RenderPageHtml(0, options);
 
         #endregion
 
@@ -304,11 +297,11 @@ public class Samples
         using var document = PdfiumDocument.Load("multi-page.pdf");
         // Visible text over the page image rendered without its text: images and drawings
         // stay, and the text is sharp at any zoom
-        var html = document.RenderHtml(
-            new HtmlOptions
-            {
-                Text = HtmlTextMode.Visible
-            });
+        var options = new HtmlOptions
+        {
+            Text = HtmlTextMode.Visible
+        };
+        var html = document.RenderHtml(options);
 
         #endregion
 
@@ -322,12 +315,12 @@ public class Samples
 
         using var document = PdfiumDocument.Load("multi-page.pdf");
         // Only web and mail links, and links between the document's pages
-        var html = document.RenderHtml(
-            new HtmlOptions
-            {
-                AllowedLinkSchemes = ["http", "https", "mailto"],
-                AllowRelativeLinks = false
-            });
+        var options = new HtmlOptions
+        {
+            AllowedLinkSchemes = ["http", "https", "mailto"],
+            AllowRelativeLinks = false
+        };
+        var html = document.RenderHtml(options);
 
         #endregion
 

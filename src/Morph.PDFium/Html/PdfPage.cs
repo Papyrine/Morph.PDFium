@@ -24,7 +24,7 @@ public sealed partial class PdfPage
         var layout = ReadHtmlLayout(options);
         string? imageUrl = null;
         byte[]? png = null;
-        if (options.IncludeImage && options.ImageUrlFromPixels is { } fromPixels)
+        if (options is { IncludeImage: true, ImageUrlFromPixels: { } fromPixels })
         {
             using var rendered = RenderHtmlPixels(options, owned);
             imageUrl = fromPixels(layout.Index, new(rendered.Pixels, rendered.Width, rendered.Height, options.Render.Dpi));
@@ -314,7 +314,7 @@ public sealed partial class PdfPage
     // height is a mark with no advance of its own, such as a combining accent.
     static double Advance(PdfRectangle box, double a, double b, double c, double d, double fontSize)
     {
-        if (box.Width <= 0 && box.Height <= 0)
+        if (box is { Width: <= 0, Height: <= 0 })
         {
             return fontSize * 0.5;
         }
@@ -437,7 +437,7 @@ public sealed partial class PdfPage
                 continue;
             }
 
-            links.Add(new(href, [.. webLink.Rectangles.Select(_ => matrix.Map(_))]));
+            links.Add(new(href, [.. webLink.Rectangles.Select(matrix.Map)]));
         }
 
         return links;
@@ -454,7 +454,10 @@ public sealed partial class PdfPage
         var y = (rectangle.Bottom + rectangle.Top) / 2;
         foreach (var area in leftOutAreas)
         {
-            if (x >= area.Left && x <= area.Right && y >= area.Bottom && y <= area.Top)
+            if (x >= area.Left &&
+                x <= area.Right &&
+                y >= area.Bottom &&
+                y <= area.Top)
             {
                 return true;
             }

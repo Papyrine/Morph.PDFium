@@ -1,5 +1,3 @@
-using Morph.PDFium;
-
 /// <summary>
 /// Works out how visible HTML text should look from what PDFium reports about a character's
 /// font: its PostScript name (such as "ABCDEF+Arial-BoldItalicMT"), its font descriptor flags

@@ -159,7 +159,7 @@ var png = document.RenderRegion(
         Dpi = 96
     });
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L340-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L333-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderRegion' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -223,7 +223,7 @@ var html = document.RenderHtml(
     });
 File.WriteAllText(Path.Combine(directory, "document.html"), html);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L249-L269' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L248-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlOptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With `HtmlTextMode.Visible`, the HTML draws the text itself. It keeps its color, weight and style, filled or outlined as the PDF draws it, stretched to the width it has on the page. It uses the PDF font's family when the browser has that font, otherwise the nearest generic family; the PDF's embedded fonts are not carried over. The page image is then rendered without its text, so images and drawings stay while the text is sharp at any zoom. The text-free images are also much smaller: at 150 DPI they were 3% of the full render's size for text pages, about 10% for forms and tables, and around half for photo-heavy pages. The trade-off is that the text is in the browser's fonts, so it looks less like the PDF than the default overlay.
@@ -234,13 +234,13 @@ With `HtmlTextMode.Visible`, the HTML draws the text itself. It keeps its color,
 using var document = PdfiumDocument.Load("multi-page.pdf");
 // Visible text over the page image rendered without its text: images and drawings
 // stay, and the text is sharp at any zoom
-var html = document.RenderHtml(
-    new HtmlOptions
-    {
-        Text = HtmlTextMode.Visible
-    });
+var options = new HtmlOptions
+{
+    Text = HtmlTextMode.Visible
+};
+var html = document.RenderHtml(options);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L302-L313' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlVisibleText' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L295-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlVisibleText' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `RenderPageHtml` (or `PdfPage.RenderHtml` on an open page) renders one page as a fragment: a `div` carrying the styles it needs inline, to place in any page. For text-only HTML, turn off the image as well.
@@ -250,15 +250,14 @@ var html = document.RenderHtml(
 ```cs
 using var document = PdfiumDocument.Load("sample.pdf");
 // Text-only HTML: the text in its own color and style, with no page image
-var fragment = document.RenderPageHtml(
-    0,
-    new HtmlOptions
-    {
-        IncludeImage = false,
-        Text = HtmlTextMode.Visible
-    });
+var options = new HtmlOptions
+{
+    IncludeImage = false,
+    Text = HtmlTextMode.Visible
+};
+var fragment = document.RenderPageHtml(0, options);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L282-L294' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L276-L287' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderTextHtml' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Only http, https, mailto, ftp and tel links and relative references are kept: `javascript:` links, launch actions and links into embedded files are dropped. For PDFs from an untrusted source, narrow that with `HtmlOptions.AllowedLinkSchemes` and `AllowRelativeLinks`. Links to the document's own pages are kept either way.
@@ -268,14 +267,14 @@ Only http, https, mailto, ftp and tel links and relative references are kept: `j
 ```cs
 using var document = PdfiumDocument.Load("multi-page.pdf");
 // Only web and mail links, and links between the document's pages
-var html = document.RenderHtml(
-    new HtmlOptions
-    {
-        AllowedLinkSchemes = ["http", "https", "mailto"],
-        AllowRelativeLinks = false
-    });
+var options = new HtmlOptions
+{
+    AllowedLinkSchemes = ["http", "https", "mailto"],
+    AllowRelativeLinks = false
+};
+var html = document.RenderHtml(options);
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L321-L332' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlUntrustedLinks' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L314-L325' title='Snippet source file'>snippet source</a> | <a href='#snippet-RenderHtmlUntrustedLinks' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -371,7 +370,7 @@ using (var second = PdfiumDocument.Load("multi-page.pdf"))
 
 var bytes = merged.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L361-L373' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L354-L366' title='Snippet source file'>snippet source</a> | <a href='#snippet-MergeDocuments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -391,7 +390,7 @@ using (var page = document.LoadPage(0))
 
 var stamped = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L382-L393' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L375-L386' title='Snippet source file'>snippet source</a> | <a href='#snippet-EditAndSave' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -404,7 +403,7 @@ using var document = PdfiumDocument.Load("sample.pdf");
 document.AddAttachment("notes.txt", [.. "embedded data"u8]);
 var withAttachment = document.Save();
 ```
-<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L401-L407' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/src/Morph.PDFium.Tests/Samples.cs#L394-L400' title='Snippet source file'>snippet source</a> | <a href='#snippet-Attachments' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For the full list of native PDFium entry points that are wrapped (and those intentionally left out), see [native API coverage](docs/native-api-coverage.md).

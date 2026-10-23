@@ -102,7 +102,7 @@ public sealed partial class PdfPage
         {
             // Printable ASCII and Latin-1, and the extras. Not the control characters, C0 or
             // C1, nor Latin-1's no-break space or soft hyphen: PDFium writes each of those as ÿ.
-            var encodable = character is (>= ' ' and <= '~') or (>= '¡' and <= 'ÿ') && character != '\u00AD';
+            var encodable = character is >= ' ' and <= '~' or >= '¡' and <= 'ÿ' && character != '\u00AD';
             if (!encodable && !windows1252Extras.Contains(character))
             {
                 throw new ArgumentException($"Character '{character}' (U+{(int) character:X4}) cannot be written with font '{fontName}'. The standard text fonts only cover printable Windows-1252.", nameof(text));
