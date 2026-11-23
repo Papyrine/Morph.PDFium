@@ -27,13 +27,13 @@ public sealed partial class PdfPage
         if (options is { IncludeImage: true, ImageUrlFromPixels: { } fromPixels })
         {
             using var rendered = RenderHtmlPixels(options, owned);
-            imageUrl = fromPixels(layout.Index, new(rendered.Pixels, rendered.Width, rendered.Height, options.Render.Dpi));
+            imageUrl = fromPixels(layout.Index, new(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi));
         }
         else if (options.IncludeImage)
         {
             using (var rendered = RenderHtmlPixels(options, owned))
             {
-                png = PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Render.Dpi, (int) options.Render.CompressionLevel);
+                png = PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.Render.CompressionLevel);
             }
 
             if (options.ImageUrl is not null)
@@ -58,7 +58,7 @@ public sealed partial class PdfPage
             return RenderPixelsHiding(render, text, !options.IncludeHeadersAndFooters, owned);
         }
 
-        return RenderPixels(render.Dpi, render.ToFlags(), render.ToFillColor(), null);
+        return RenderPixels(render.Dpi, render.MaxPixelDimension, render.ToFlags(), render.ToFillColor(), null);
     }
 
     HtmlPageLayout ReadHtmlLayout(HtmlOptions options)

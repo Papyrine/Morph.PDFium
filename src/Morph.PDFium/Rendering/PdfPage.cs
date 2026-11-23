@@ -10,8 +10,8 @@ public sealed partial class PdfPage
     public byte[] Render(double dpi = 96)
     {
         RenderOptions.ValidateDpi(dpi, nameof(dpi));
-        using var rendered = RenderPixels(dpi, PdfiumNative.RenderAnnotations, PdfiumDocument.OpaqueWhite, null);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi, (int) RenderOptions.DefaultCompressionLevel);
+        using var rendered = RenderPixels(dpi, null, PdfiumNative.RenderAnnotations, PdfiumDocument.OpaqueWhite, null);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) RenderOptions.DefaultCompressionLevel);
     }
 
     /// <summary>Renders this page to a PNG using the supplied <paramref name="options"/>.</summary>
@@ -19,8 +19,8 @@ public sealed partial class PdfPage
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate(nameof(options));
-        using var rendered = RenderPixels(options.Dpi, options.ToFlags(), options.ToFillColor(), null);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+        using var rendered = RenderPixels(options.Dpi, options.MaxPixelDimension, options.ToFlags(), options.ToFillColor(), null);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
     }
 
     /// <summary>
@@ -32,8 +32,8 @@ public sealed partial class PdfPage
         options ??= new();
         options.Validate(nameof(options));
         PdfiumDocument.ValidateClip(clip);
-        using var rendered = RenderPixels(options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+        using var rendered = RenderPixels(options.Dpi, options.MaxPixelDimension, options.ToFlags(), options.ToFillColor(), clip);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
     }
 
     // Form XObjects nest; malformed ones could nest without end.
@@ -57,7 +57,7 @@ public sealed partial class PdfPage
     internal byte[] RenderWithoutText(RenderOptions options, bool inPlace)
     {
         using var rendered = RenderPixelsHiding(options, true, false, inPlace);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
     }
 
     // This page's pixels without its text, as RenderWithoutText explains, or without its
@@ -103,7 +103,7 @@ public sealed partial class PdfPage
                     HeaderFooterArtifacts.Find(page, display, size.Height, static (pageObject, _) => PdfiumNative.FPDFPageObj_SetIsActive(pageObject, false));
                 }
 
-                return PdfiumDocument.RenderLoadedPage(page, size, Index, options.Dpi, options.ToFlags() | PdfiumNative.ReverseByteOrder, options.ToFillColor(), null, IntPtr.Zero);
+                return PdfiumDocument.RenderLoadedPage(page, size, Index, options.Dpi, options.ToFlags() | PdfiumNative.ReverseByteOrder, options.ToFillColor(), null, IntPtr.Zero, options.MaxPixelDimension);
             }
             finally
             {
@@ -148,7 +148,7 @@ public sealed partial class PdfPage
     }
 
     // The counterpart of PdfiumDocument.RenderPixels for a page that is already loaded.
-    RenderedPixels RenderPixels(double dpi, int renderFlags, uint background, PdfRectangle? clip)
+    RenderedPixels RenderPixels(double dpi, int? maxPixelDimension, int renderFlags, uint background, PdfRectangle? clip)
     {
         lock (PdfiumNative.Sync)
         {
@@ -159,7 +159,7 @@ public sealed partial class PdfPage
                 Width = PdfiumNative.FPDF_GetPageWidthF(page),
                 Height = PdfiumNative.FPDF_GetPageHeightF(page)
             };
-            return PdfiumDocument.RenderLoadedPage(page, size, Index, dpi, renderFlags | PdfiumNative.ReverseByteOrder, background, clip, IntPtr.Zero);
+            return PdfiumDocument.RenderLoadedPage(page, size, Index, dpi, renderFlags | PdfiumNative.ReverseByteOrder, background, clip, IntPtr.Zero, maxPixelDimension);
         }
     }
 }

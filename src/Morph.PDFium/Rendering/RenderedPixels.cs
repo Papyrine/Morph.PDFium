@@ -3,11 +3,15 @@
 /// <see cref="Pixels"/>.Length bytes hold the RGBA pixels. Disposing returns the buffer, so
 /// nothing that refers to it may be kept past that.
 /// </summary>
-readonly struct RenderedPixels(byte[] buffer, int width, int height) :
+readonly struct RenderedPixels(byte[] buffer, int width, int height, double dpi) :
     IDisposable
 {
     public int Width { get; } = width;
     public int Height { get; } = height;
+
+    // The resolution the page was drawn at: the one asked for, or lower where
+    // RenderOptions.MaxPixelDimension capped it.
+    public double Dpi { get; } = dpi;
 
     public ReadOnlySpan<byte> Pixels =>
         buffer.AsSpan(0, Width * Height * 4);

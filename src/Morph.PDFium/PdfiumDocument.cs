@@ -213,7 +213,7 @@ public sealed partial class PdfiumDocument :
 
         using var rendered = RenderPixels(index, dpi, PdfiumNative.RenderAnnotations, OpaqueWhite, null);
         // Encode outside the PDFium lock: it is pure managed work
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, dpi, (int) RenderOptions.DefaultCompressionLevel);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) RenderOptions.DefaultCompressionLevel);
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public sealed partial class PdfiumDocument :
     // null the whole page is rendered; otherwise only that rectangle, given in page coordinates.
     // The pixels come back in a pooled buffer, so the caller disposes the result once it is
     // done with them.
-    internal RenderedPixels RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = 0)
+    internal RenderedPixels RenderPixels(int index, double dpi, int renderFlags, uint background, PdfRectangle? clip, IntPtr formHandle = 0, int? maxPixelDimension = null)
     {
         lock (PdfiumNative.Sync)
         {
@@ -263,7 +263,7 @@ public sealed partial class PdfiumDocument :
 
             try
             {
-                return RenderLoadedPage(page, size, index, dpi, renderFlags | PdfiumNative.ReverseByteOrder, background, clip, formHandle);
+                return RenderLoadedPage(page, size, index, dpi, renderFlags | PdfiumNative.ReverseByteOrder, background, clip, formHandle, maxPixelDimension);
             }
             finally
             {
@@ -277,8 +277,28 @@ public sealed partial class PdfiumDocument :
         }
     }
 
+    // The dpi to draw an area of width by height points at so that neither side passes
+    // maxPixelDimension pixels: the dpi asked for when the area fits at it, otherwise the one
+    // at which the longer side rounds to exactly maxPixelDimension, so the shorter can only be
+    // smaller.
+    internal static double CapDpi(double width, double height, double dpi, int? maxPixelDimension)
+    {
+        if (maxPixelDimension is not { } max)
+        {
+            return dpi;
+        }
+
+        var longer = Math.Max(width, height);
+        if (ToPixels(longer, dpi) <= max)
+        {
+            return dpi;
+        }
+
+        return max * 72d / longer;
+    }
+
     // Caller must hold PdfiumNative.Sync.
-    internal static RenderedPixels RenderLoadedPage(IntPtr page, PdfiumNative.PageSizeF size, int index, double dpi, int flags, uint background, PdfRectangle? clip, IntPtr formHandle)
+    internal static RenderedPixels RenderLoadedPage(IntPtr page, PdfiumNative.PageSizeF size, int index, double dpi, int flags, uint background, PdfRectangle? clip, IntPtr formHandle, int? maxPixelDimension)
     {
         // The part of the displayed page to draw, in points from its top-left corner.
         var area = (Left: 0d, Top: 0d, Width: (double) size.Width, Height: (double) size.Height);
@@ -287,6 +307,7 @@ public sealed partial class PdfiumDocument :
             area = ToDisplayArea(page, size, rectangle, index);
         }
 
+        dpi = CapDpi(area.Width, area.Height, dpi, maxPixelDimension);
         var width = ToPixels(area.Width, dpi);
         var height = ToPixels(area.Height, dpi);
         // Size in 64 bit: a wrapped 32 bit product would give PDFium a buffer smaller than
@@ -370,7 +391,7 @@ public sealed partial class PdfiumDocument :
             pinned.Free();
         }
 
-        return new(pixels, width, height);
+        return new(pixels, width, height, dpi);
     }
 
     // Caller must hold PdfiumNative.Sync. Converts a rectangle in page coordinates, the

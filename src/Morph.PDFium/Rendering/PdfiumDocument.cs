@@ -10,8 +10,8 @@ public sealed partial class PdfiumDocument
         ValidateIndex(index);
         options.Validate(nameof(options));
 
-        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, maxPixelDimension: options.MaxPixelDimension);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
     }
 
     /// <summary>
@@ -41,8 +41,8 @@ public sealed partial class PdfiumDocument
         options.Validate(nameof(options));
         ValidateClip(clip);
 
-        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), clip);
-        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+        using var rendered = RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), clip, maxPixelDimension: options.MaxPixelDimension);
+        return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
     }
 
     internal static void ValidateClip(PdfRectangle clip)
