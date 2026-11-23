@@ -10,6 +10,22 @@ public sealed record RenderOptions
     /// <summary>Output resolution in dots per inch. Must be positive.</summary>
     public double Dpi { get; init; } = 96;
 
+    /// <summary>
+    /// The most pixels either side of the image may have, or null (the default) for no limit.
+    /// A page, or region, that would be larger than this at <see cref="Dpi"/> renders instead
+    /// at the lower resolution that makes its longer side exactly this many pixels, keeping its
+    /// proportions; one that fits renders at <see cref="Dpi"/>. The PNG's resolution, and
+    /// <see cref="PageImage.Dpi"/>, give the resolution actually used. Must be positive.
+    /// </summary>
+    /// <remarks>
+    /// A page's pixels grow with the square of its size, so an oversized page (a poster, or
+    /// slides authored at many times the usual size) can need hundreds of megabytes at a dpi
+    /// that suits an ordinary page, and can pass what an image format allows on a side: 16383
+    /// for WebP, 65535 for JPEG. This bounds such a page without lowering the resolution of
+    /// the ordinary pages around it.
+    /// </remarks>
+    public int? MaxPixelDimension { get; init; }
+
     /// <summary>Whether to render annotations (excluding interactive widgets and popups).</summary>
     public bool RenderAnnotations { get; init; } = true;
 
@@ -77,6 +93,10 @@ public sealed record RenderOptions
     {
         ValidateDpi(Dpi, paramName);
         ValidateCompressionLevel(CompressionLevel, paramName);
+        if (MaxPixelDimension is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(paramName, MaxPixelDimension, "MaxPixelDimension must be positive");
+        }
     }
 
     internal int ToFlags()

@@ -196,6 +196,26 @@ public class Samples
     }
 
     [Test]
+    public async Task MaxPixelDimension()
+    {
+        #region MaxPixelDimension
+
+        using var document = PdfiumDocument.Load("sample.pdf");
+        // Ordinary pages render at 150 dpi; a page that would be more than 4096 pixels on a
+        // side renders at the lower dpi that makes it exactly that.
+        var pngs = document.RenderPages(
+            new RenderOptions
+            {
+                Dpi = 150,
+                MaxPixelDimension = 4096
+            });
+
+        #endregion
+
+        await Assert.That(pngs.Count).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task ProcessPages()
     {
         #region ProcessPages

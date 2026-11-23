@@ -125,12 +125,12 @@ public sealed class PdfForm :
             // Touch the document so a disposed document surfaces as ObjectDisposedException.
             _ = document.Handle;
             document.ValidateIndex(index);
-            rendered = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form);
+            rendered = document.RenderPixels(index, options.Dpi, options.ToFlags(), options.ToFillColor(), null, form, options.MaxPixelDimension);
         }
 
         using (rendered)
         {
-            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, options.Dpi, (int) options.CompressionLevel);
+            return PngEncoder.Encode(rendered.Pixels, rendered.Width, rendered.Height, rendered.Dpi, (int) options.CompressionLevel);
         }
     }
 
